@@ -1,0 +1,175 @@
+# Prometheus Alerting Rules for OASIS Agentic Pipeline
+# Defines alert conditions for system monitoring
+
+groups:
+  # API Health Alerts
+  - name: api_health
+    interval: 30s
+    rules:
+      - alert: APIDown
+        expr: up{job="oasis-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "OASIS API is down"
+          description: "The OASIS API has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(oasis_api_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      - alert: SlowAPIResponse
+        expr: histogram_quantile(0.95, rate(oasis_api_request_duration_seconds_bucket[5m])) > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "Slow API response times"
+          description: "95th percentile response time is {{ $value }}s (threshold: 5s)"
+
+  # Diagnosis Alerts
+  - name: diagnosis_quality
+    interval: 1m
+    rules:
+      - alert: LowDiagnosisConfidence
+        expr: histogram_quantile(0.50, rate(oasis_diagnosis_confidence_bucket[1h])) < 0.65
+        for: 30m
+        labels:
+          severity: warning
+          component: diagnosis
+        annotations:
+          summary: "Low diagnosis confidence scores"
+          description: "Median diagnosis confidence is {{ $value | humanizePercentage }} (threshold: 65%)"
+
+      - alert: HighEthicsBlockRate
+        expr: rate(oasis_ethics_audits_total{result="blocked"}[1h]) / rate(oasis_ethics_audits_total[1h]) > 0.20
+        for: 30m
+        labels:
+          severity: warning
+          component: ethics
+        annotations:
+          summary: "High ethics audit block rate"
+          description: "{{ $value | humanizePercentage }} of diagnoses are being blocked (threshold: 20%)"
+
+  # Agent Performance Alerts
+  - name: agent_performance
+    interval: 1m
+    rules:
+      - alert: AgentExecutionFailures
+        expr: rate(oasis_agent_executions_total{status="error"}[10m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: agents
+        annotations:
+          summary: "Agent execution failures detected"
+          description: "Agent {{ $labels.agent_name }} has {{ $value }} failures per second"
+
+      - alert: SlowAgentExecution
+        expr: histogram_quantile(0.95, rate(oasis_agent_execution_duration_seconds_bucket[10m])) > 10
+        for: 15m
+        labels:
+          severity: warning
+          component: agents
+        annotations:
+          summary: "Slow agent execution"
+          description: "Agent {{ $labels.agent_name }} 95th percentile execution time is {{ $value }}s"
+
+  # System Resource Alerts
+  - name: system_resources
+    interval: 30s
+    rules:
+      - alert: HighMemoryUsage
+        expr: (oasis_memory_usage_bytes / 1024 / 1024 / 1024) > 7
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage"
+          description: "Component {{ $labels.component }} is using {{ $value }}GB of memory (threshold: 7GB)"
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 3.5
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }} cores (threshold: 3.5 cores)"
+
+  # Database/Cache Alerts
+  - name: cache_health
+    interval: 30s
+    rules:
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis has been down for more than 1 minute"
+
+      - alert: HighCacheEvictionRate
+        expr: rate(redis_evicted_keys_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "High cache eviction rate"
+          description: "Redis is evicting {{ $value }} keys per second"
+
+  # Batch Processing Alerts
+  - name: batch_processing
+    interval: 1m
+    rules:
+      - alert: LongBatchProcessing
+        expr: histogram_quantile(0.95, rate(oasis_batch_duration_seconds_bucket[30m])) > 600
+        for: 15m
+        labels:
+          severity: warning
+          component: batch
+        annotations:
+          summary: "Long batch processing times"
+          description: "95th percentile batch processing time is {{ $value }}s (threshold: 600s)"
+
+  # Model Health Alerts
+  - name: model_health
+    interval: 1m
+    rules:
+      - alert: ModelNotLoaded
+        expr: oasis_model_loaded == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: model
+        annotations:
+          summary: "Model not loaded"
+          description: "Model {{ $labels.model_name }} is not loaded"
+
+  # Connection Alerts
+  - name: connections
+    interval: 30s
+    rules:
+      - alert: HighActiveConnections
+        expr: oasis_active_connections > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: connections
+        annotations:
+          summary: "High number of active connections"
+          description: "{{ $value }} active {{ $labels.connection_type }} connections (threshold: 100)"

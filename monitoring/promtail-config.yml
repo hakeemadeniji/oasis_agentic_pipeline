@@ -1,0 +1,114 @@
+# Promtail Configuration for OASIS Agentic Pipeline
+# Log collection and forwarding to Loki
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # OASIS API logs
+  - job_name: oasis-api
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: oasis-api
+          service: api
+          __path__: /var/log/oasis/oasis-pipeline.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            logger: logger
+            message: message
+            module: module
+      - labels:
+          level:
+          logger:
+          module:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+
+  # OASIS API JSON logs
+  - job_name: oasis-api-json
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: oasis-api-json
+          service: api
+          format: json
+          __path__: /var/log/oasis/oasis-pipeline.json
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            patient_id: extra_fields.patient_id
+            event_type: extra_fields.event_type
+      - labels:
+          level:
+          event_type:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+
+  # Error logs
+  - job_name: oasis-errors
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: oasis-errors
+          service: api
+          severity: error
+          __path__: /var/log/oasis/oasis-pipeline-errors.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\S+\s+\S+) - (?P<logger>\S+) - (?P<level>\S+) - (?P<message>.*)$'
+      - labels:
+          level:
+          logger:
+      - timestamp:
+          source: timestamp
+          format: '2006-01-02 15:04:05'
+
+  # Nginx access logs
+  - job_name: nginx-access
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx-access
+          service: nginx
+          __path__: /var/log/nginx/access.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<remote_addr>\S+) - (?P<remote_user>\S+) \[(?P<time_local>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) (?P<protocol>\S+)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
+      - labels:
+          method:
+          status:
+      - timestamp:
+          source: time_local
+          format: '02/Jan/2006:15:04:05 -0700'
+
+  # Docker container logs
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
