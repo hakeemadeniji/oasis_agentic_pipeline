@@ -5,7 +5,10 @@
 torch==2.12.0
 torchvision==0.27.0
 transformers==5.10.2
-sentence-transformers==2.2.2
+# NOTE: the RAG agent loads the "sentence-transformers/all-MiniLM-L6-v2" weights
+# directly via transformers (AutoTokenizer/AutoModel) with its own mean-pooling,
+# so the standalone `sentence-transformers` package is NOT required. It was also
+# incompatible (it pins transformers<5.0.0, conflicting with transformers 5.10.2).
 
 # ONNX Runtime
 # NOTE (Windows ARM64 / Snapdragon NPU): for Hexagon NPU acceleration install the
