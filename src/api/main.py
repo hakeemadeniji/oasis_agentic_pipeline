@@ -12,8 +12,9 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Query
-from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import torch
 import numpy as np
@@ -26,6 +27,7 @@ src_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(src_dir)
 
 from orchestrator.chief_medical_officer import AdvancedChiefMedicalOfficer
+from api.heatmap import render_gradcam
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -101,10 +103,14 @@ class DiagnosisResponse(BaseModel):
     rag_context: List[str]
     explainability: Dict[str, Any]
     ethics_audit: Dict[str, Any]
+    regional_volumetry: Dict[str, Any] = {}
+    atn_profile: Dict[str, Any] = {}
+    clinical_narrative: str = ""
+    reasoning_tier: str = ""
     final_diagnosis: str
     confidence: float
     approved: bool
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -243,14 +249,18 @@ async def diagnose_patient(request: DiagnosisRequest):
                 "probabilities": probabilities.cpu().numpy().tolist()
             }
             
-            # Generate explainability heatmap
+            # Generate explainability heatmap (Grad-CAM) + colorized overlay layers.
             heatmap = cmo.explainer_agent.generate_heatmap(img_tensor, target_class=pred_idx)
             peak_focus = np.unravel_index(np.argmax(heatmap), heatmap.shape)
-            
+            layers = render_gradcam(image, heatmap)
+
             explainability_result = {
                 "heatmap_available": True,
-                "peak_activation": list(peak_focus),
-                "heatmap_shape": list(heatmap.shape)
+                "peak_activation": [int(v) for v in peak_focus],
+                "heatmap_shape": list(heatmap.shape),
+                "base_png": layers["base"],
+                "heatmap_png": layers["heatmap"],
+                "overlay_png": layers["overlay"],
             }
         else:
             vision_result = {
@@ -299,10 +309,52 @@ async def diagnose_patient(request: DiagnosisRequest):
             "approved": not is_flagged,
             "message": restriction_log
         }
-        
+
+        # Regional volumetry (Agent 9): use FreeSurfer aseg when a subject id is given.
+        volumetry_dict: Dict[str, Any] = {"source": "unavailable", "summary": "No FreeSurfer subject id provided."}
+        volumetry_summary = volumetry_dict["summary"]
+        hippo_zs: List[float] = []
+        mta_risk = 0.0
+        if request.longitudinal_id:
+            vol = cmo.volumetry_agent.analyze_subject(request.longitudinal_id)
+            volumetry_dict = vol.to_dict()
+            volumetry_summary = vol.summary
+            hippo_zs = [r.z_score for r in vol.regions if "Hippocampus" in r.structure]
+            mta_risk = vol.mta_risk_score
+
+        # ATN biomarker profile (Agent 10): A/T from OASIS-3 PET (PUP) SUVR when
+        # available for the subject; N from regional volumetry.
+        pet = cmo.pet_pup.analyze_subject(request.longitudinal_id) if request.longitudinal_id else None
+        atn = cmo.atn_profiler.classify(
+            amyloid_suvr=pet.amyloid_suvr if pet else None,
+            amyloid_centiloid=pet.amyloid_centiloid if pet else None,
+            amyloid_tracer=(pet.amyloid_tracer or "PIB") if pet else "PIB",
+            tau_suvr=pet.tau_suvr if pet else None,
+            hippocampus_z=(sum(hippo_zs) / len(hippo_zs)) if hippo_zs else None,
+            mta_risk=mta_risk if mta_risk else None,
+        )
+        atn_dict = atn.to_dict()
+        if pet:
+            atn_dict["pet"] = pet.to_dict()
+
         # Final diagnosis
         final_diagnosis = vision_result["class"] if not is_flagged else "DIAGNOSIS_BLOCKED"
-        
+
+        # Hybrid edge-cloud clinical reasoner (Agent 8): grounded narrative via local Ollama.
+        reasoning = cmo.reasoner_agent.synthesize({
+            "prediction": vision_result["class"],
+            "authorized_class": final_diagnosis,
+            "confidence": vision_result["confidence"],
+            "age": request.patient_data.age,
+            "mmse": request.patient_data.mmse,
+            "clinical_trend": temporal_result.get("trend", "N/A"),
+            "atrophy_velocity": temporal_result.get("atrophy_velocity", 0.0),
+            "volumetry_summary": volumetry_summary,
+            "ethics_flagged": is_flagged,
+            "ethics_message": restriction_log,
+            "rag_context": rag_context,
+        })
+
         return DiagnosisResponse(
             patient_id=request.patient_data.patient_id,
             timestamp=datetime.utcnow().isoformat(),
@@ -312,6 +364,10 @@ async def diagnose_patient(request: DiagnosisRequest):
             rag_context=rag_context,
             explainability=explainability_result,
             ethics_audit=ethics_result,
+            regional_volumetry=volumetry_dict,
+            atn_profile=atn_dict,
+            clinical_narrative=reasoning.narrative,
+            reasoning_tier=f"{reasoning.tier}:{reasoning.model}",
             final_diagnosis=final_diagnosis,
             confidence=vision_result["confidence"],
             approved=not is_flagged
@@ -469,8 +525,12 @@ async def model_info():
             "rag": "RAGAgent",
             "explainer": "ExplainerAgent",
             "temporal": "TemporalAnalyst",
-            "ethicist": "EthicistAgent"
-        }
+            "ethicist": "EthicistAgent",
+            "reasoner": "ClinicalReasonerAgent (Ollama, hybrid edge-cloud)",
+            "volumetry": "RegionalVolumetryAgent (FreeSurfer aseg)"
+        },
+        "acceleration": cmo.settings.onnx_providers,
+        "llm": cmo.settings.summary()
     }
 
 
@@ -531,9 +591,59 @@ async def get_statistics():
         "total_patients": len(cmo.patient_df),
         "device": str(cmo.device),
         "model_loaded": True,
-        "agents_active": 6,
+        "agents_active": 8,
         "uptime": "N/A"  # Would need to track startup time
     }
+
+
+# Sample MRI endpoint (one-click demo for the clinical console)
+@app.get("/api/sample", tags=["Demo"])
+async def sample_image(label: Optional[str] = Query(None, description="Class folder to sample from")):
+    """
+    Return a random OASIS MRI slice (base64 PNG) and its ground-truth class.
+
+    Powers the 'Load sample scan' button in the clinical console so the UI is
+    demonstrable on a hospital display without a local file to hand.
+    """
+    data_root = Path(ROOT_DIR) / "data" / "oasis_raw"
+    if not data_root.exists():
+        raise HTTPException(status_code=404, detail="OASIS dataset not found")
+
+    class_dirs = [d for d in data_root.iterdir() if d.is_dir()]
+    if label:
+        class_dirs = [d for d in class_dirs if d.name.lower() == label.lower()] or class_dirs
+    if not class_dirs:
+        raise HTTPException(status_code=404, detail="No class folders found")
+
+    import random
+    chosen_dir = random.choice(class_dirs)
+    images = [p for p in chosen_dir.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png"}]
+    if not images:
+        raise HTTPException(status_code=404, detail="No images found")
+    img_path = random.choice(images)
+
+    image = Image.open(img_path).convert("L")
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return {
+        "true_label": chosen_dir.name,
+        "filename": img_path.name,
+        "image_base64": b64,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Production web console (static SPA). Mounted last so API routes take priority.
+# Served at /app ; visiting / redirects there. Works on any browser/large display.
+# ---------------------------------------------------------------------------
+WEB_DIR = os.path.abspath(os.path.join(current_dir, "..", "..", "web"))
+if os.path.isdir(WEB_DIR):
+    app.mount("/app", StaticFiles(directory=WEB_DIR, html=True), name="console")
+
+    @app.get("/console", include_in_schema=False)
+    async def console_redirect():
+        return RedirectResponse(url="/app/")
 
 
 # Main entry point
