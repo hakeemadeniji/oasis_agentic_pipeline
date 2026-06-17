@@ -10,7 +10,6 @@ import numpy as np
 import time
 import os
 import sys
-from pathlib import Path
 from PIL import Image
 
 # Add src to path
@@ -143,7 +142,8 @@ class TestBiomarkerAgentPerformance:
         # Simulate re-normalization
         normalized = (tensors - tensors.mean(dim=0)) / (tensors.std(dim=0) + 1e-8)
         end_time = time.time()
-        
+
+        assert normalized.shape == tensors.shape
         elapsed = end_time - start_time
         print(f"\nNormalization time for 1000 patients: {elapsed*1000:.2f}ms")
         assert elapsed < 1.0  # Should be fast

@@ -11,7 +11,7 @@ import threading
 from collections import defaultdict
 
 try:
-    from prometheus_client import Counter, Histogram, Gauge, Summary, Info
+    from prometheus_client import Counter, Histogram, Gauge, Info
     from prometheus_client import generate_latest, REGISTRY
     PROMETHEUS_AVAILABLE = True
 except ImportError:

@@ -67,9 +67,10 @@ class TestClinicalBiomarkerAgent:
         continuous_features = tensors[:, :-1]  # Exclude gender
         mean = continuous_features.mean(dim=0)
         std = continuous_features.std(dim=0)
-        
-        # Check mean is close to 0 (within tolerance)
+
+        # Check mean is close to 0 and std close to 1 (within tolerance)
         assert torch.allclose(mean, torch.zeros_like(mean), atol=1.0)
+        assert torch.allclose(std, torch.ones_like(std), atol=1.0)
         
     def test_gender_encoding(self, agent, sample_csv):
         """Test gender is correctly encoded"""

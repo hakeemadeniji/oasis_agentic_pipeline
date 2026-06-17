@@ -462,10 +462,10 @@ if mode == "Single Patient Analysis":
             st.markdown("**Audit Results:**")
             
             if is_flagged:
-                st.error(f"❌ **Status:** BLOCKED")
+                st.error("❌ **Status:** BLOCKED")
                 st.markdown(f"**Reason:** {restriction_log}")
             else:
-                st.success(f"✅ **Status:** APPROVED")
+                st.success("✅ **Status:** APPROVED")
                 st.markdown(f"**Message:** {restriction_log}")
             
             st.markdown("**Guardrail Checks:**")

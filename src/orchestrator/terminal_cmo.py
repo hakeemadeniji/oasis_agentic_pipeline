@@ -1,7 +1,6 @@
 import os
 import sys
 import numpy as np
-import torch
 
 # 1. Dynamically calculate absolute path locations
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))   # src/orchestrator
@@ -67,9 +66,9 @@ def run_advanced_terminal_pipeline():
     )
 
     if is_flagged:
-        print(f"\n[🚨 CRITICAL ALARM] Ethicist intercepted prediction!")
+        print("\n[🚨 CRITICAL ALARM] Ethicist intercepted prediction!")
         print(f" -> Reason: {reason}")
-        print(f"[*] Serializing case logs directly into active_learning.db SQLite layer...")
+        print("[*] Serializing case logs directly into active_learning.db SQLite layer...")
         
         # Write directly to the relational database tables
         registry.log_flagged_anomaly(
@@ -87,7 +86,7 @@ def run_advanced_terminal_pipeline():
         queue = registry.fetch_active_queue()
         print(f"[SUCCESS] Database updated! Active cases in the human review queue: {len(queue)}")
     else:
-        print(f"\n[✔ COMPLIANCE PASSED] Diagnosis cleared for hospital charts.")
+        print("\n[✔ COMPLIANCE PASSED] Diagnosis cleared for hospital charts.")
 
 if __name__ == "__main__":
     run_advanced_terminal_pipeline()

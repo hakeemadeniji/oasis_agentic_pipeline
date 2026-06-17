@@ -6,13 +6,9 @@ Tests for demographic bias, fairness metrics, and equitable performance
 import pytest
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple
-from collections import defaultdict
-import warnings
+from typing import Dict, List
 
 # Statistical tests
-from scipy import stats
-from sklearn.metrics import confusion_matrix, classification_report
 
 
 class BiasDetector:

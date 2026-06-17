@@ -8,9 +8,6 @@ import torch
 import pandas as pd
 import numpy as np
 from PIL import Image
-from pathlib import Path
-import tempfile
-import shutil
 import os
 import sys
 

@@ -266,4 +266,4 @@ if __name__ == "__main__":
     # Clean up test database
     if os.path.exists(test_db):
         os.remove(test_db)
-        print(f"[+] Cleaned up test database")
+        print("[+] Cleaned up test database")

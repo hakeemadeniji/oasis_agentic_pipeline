@@ -12,11 +12,10 @@ from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from pathlib import Path
 from datetime import datetime
 import json
 from tqdm import tqdm
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple
 import argparse
 
 # Add src to path

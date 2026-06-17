@@ -4,15 +4,12 @@ Tests REST API, batch processing, and real-time inference
 """
 
 import pytest
-import asyncio
 import base64
-import json
 from io import BytesIO
 from PIL import Image
-import numpy as np
 
 # Mock imports for testing without actual API server
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 import sys
 import os
 
@@ -216,8 +213,7 @@ class TestBatchProcessing:
         # Mock initialization parameters
         workspace_root = "."
         max_workers = 4
-        use_gpu = False
-        
+
         assert max_workers > 0
         assert workspace_root is not None
     

@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 import numpy as np
-from typing import Tuple, Any
 
 class CleanCrossAttentionBridge(nn.Module):
     """

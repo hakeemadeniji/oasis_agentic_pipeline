@@ -16,8 +16,6 @@ import torch
 import numpy as np
 from PIL import Image
 from fastapi import WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
-import uvicorn
 
 # Add src to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -35,7 +33,7 @@ class RealtimeInferenceEngine:
         self.cmo = AdvancedChiefMedicalOfficer(workspace_root=workspace_root)
         self.active_connections: Dict[str, WebSocket] = {}
         
-        print(f"✓ Real-time Inference Engine initialized")
+        print("✓ Real-time Inference Engine initialized")
         print(f"  Device: {self.cmo.device}")
     
     async def connect_websocket(self, websocket: WebSocket, client_id: str):
@@ -324,9 +322,8 @@ class StreamingInferenceAPI:
         
         try:
             patient_id = patient_data.get('patient_id', 'UNKNOWN')
-            age = float(patient_data.get('age', 0))
             mmse = float(patient_data.get('mmse', 0))
-            
+
             # Stage 1: Image Processing
             yield format_sse({
                 "type": "progress",
@@ -479,8 +476,8 @@ def main():
     
     # Initialize engine
     engine = RealtimeInferenceEngine(workspace_root=args.workspace)
-    
-    print("\n✓ Real-time Inference Engine ready")
+
+    print(f"\n✓ {engine.__class__.__name__} ready")
     print("  Use with FastAPI WebSocket endpoints")
 
 

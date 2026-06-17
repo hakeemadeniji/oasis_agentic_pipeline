@@ -6,11 +6,10 @@ Handles multiple patient diagnoses efficiently with parallel processing.
 import os
 import sys
 import json
-import asyncio
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import torch
 from PIL import Image
@@ -46,7 +45,7 @@ class BatchProcessor:
         self.results_dir = Path(workspace_root) / "data" / "batch_results"
         self.results_dir.mkdir(parents=True, exist_ok=True)
         
-        print(f"✓ Batch Processor initialized")
+        print("✓ Batch Processor initialized")
         print(f"  Device: {self.cmo.device}")
         print(f"  Max workers: {max_workers}")
         print(f"  Results directory: {self.results_dir}")

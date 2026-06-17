@@ -11,7 +11,6 @@ from optuna.trial import Trial
 from optuna.visualization import plot_optimization_history, plot_param_importances
 import json
 from datetime import datetime
-from pathlib import Path
 import argparse
 from typing import Dict, Optional
 
@@ -201,12 +200,12 @@ class HyperparameterTuner:
             # Optimization history
             fig1 = plot_optimization_history(study)
             fig1.write_html(os.path.join(self.output_dir, 'optimization_history.html'))
-            print(f"✓ Optimization history saved")
+            print("✓ Optimization history saved")
             
             # Parameter importances
             fig2 = plot_param_importances(study)
             fig2.write_html(os.path.join(self.output_dir, 'param_importances.html'))
-            print(f"✓ Parameter importances saved")
+            print("✓ Parameter importances saved")
             
         except Exception as e:
             print(f"⚠ Could not generate visualizations: {e}")

@@ -5,7 +5,6 @@ Tests document ingestion, embedding generation, and semantic search functionalit
 
 import pytest
 import torch
-import numpy as np
 import os
 import sys
 

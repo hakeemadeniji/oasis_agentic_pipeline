@@ -13,7 +13,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 import json
-from typing import Dict, Tuple, Optional, List
+from typing import Dict, Tuple, Optional
 import argparse
 
 # Add src to path
@@ -211,12 +211,12 @@ class ONNXExporter:
             max_diff = np.abs(onnx_output - pytorch_output).max()
             mean_diff = np.abs(onnx_output - pytorch_output).mean()
             
-            print(f"✓ ONNX inference successful")
+            print("✓ ONNX inference successful")
             print(f"  Max difference: {max_diff:.6f}")
             print(f"  Mean difference: {mean_diff:.6f}")
             
             if max_diff > 1e-3:
-                print(f"⚠ Warning: Large difference between PyTorch and ONNX outputs")
+                print("⚠ Warning: Large difference between PyTorch and ONNX outputs")
             
         except Exception as e:
             print(f"✗ ONNX inference test failed: {e}")
@@ -387,7 +387,7 @@ def main():
         # Benchmark
         results = engine.benchmark(input_shape=(1, 1, 224, 224), num_iterations=100)
         
-        print(f"\nBenchmark Results:")
+        print("\nBenchmark Results:")
         print(f"  Total time: {results['total_time']:.4f} seconds")
         print(f"  Average inference time: {results['avg_inference_time']*1000:.2f} ms")
         print(f"  Throughput: {results['throughput']:.2f} inferences/second")

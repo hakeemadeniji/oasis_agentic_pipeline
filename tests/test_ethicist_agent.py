@@ -83,7 +83,7 @@ class TestAuditDiagnosticProposal:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == False
+        assert not is_flagged
         assert "VERIFIED" in message
 
 
@@ -104,7 +104,7 @@ class TestConfidenceThresholdRule:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == True
+        assert is_flagged
         assert "REJECTED" in message
         assert "confidence" in message.lower()
         
@@ -117,7 +117,7 @@ class TestConfidenceThresholdRule:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_above_threshold_approved(self, agent):
         """Test that confidence above threshold is approved"""
@@ -128,7 +128,7 @@ class TestConfidenceThresholdRule:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_very_low_confidence_rejected(self, agent):
         """Test that very low confidence is rejected"""
@@ -139,7 +139,7 @@ class TestConfidenceThresholdRule:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == True
+        assert is_flagged
         assert "Sub-threshold" in message
         
     def test_confidence_floor_in_message(self, agent):
@@ -171,7 +171,7 @@ class TestCognitiveVsSpatialContradiction:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == True
+        assert is_flagged
         assert "REJECTED" in message
         assert "Cross-Modal" in message
         
@@ -184,7 +184,7 @@ class TestCognitiveVsSpatialContradiction:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == True
+        assert is_flagged
         assert "Cross-Modal" in message
         
     def test_high_mmse_with_very_mild_approved(self, agent):
@@ -197,7 +197,7 @@ class TestCognitiveVsSpatialContradiction:
         )
         
         # Should not trigger Rule 2 (MMSE >= 27 with Mild/Moderate)
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_high_mmse_with_non_demented_approved(self, agent):
         """Test that high MMSE with Non Demented is approved"""
@@ -208,7 +208,7 @@ class TestCognitiveVsSpatialContradiction:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_mmse_boundary_27(self, agent):
         """Test MMSE boundary at 27.0"""
@@ -220,7 +220,7 @@ class TestCognitiveVsSpatialContradiction:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == True
+        assert is_flagged
         
     def test_mmse_just_below_boundary(self, agent):
         """Test MMSE just below 27.0"""
@@ -255,7 +255,7 @@ class TestSilentStructuralDegradation:
             atrophy_velocity=2.5  # High atrophy
         )
         
-        assert is_flagged == False  # Approved but with warning
+        assert not is_flagged  # Approved but with warning
         assert "WARNING" in message
         assert "structural brain tissue loss" in message.lower()
         
@@ -325,7 +325,7 @@ class TestCriticalFailureCheck:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == True
+        assert is_flagged
         assert "REJECTED" in message
         assert "Type-II Error" in message
         
@@ -339,7 +339,7 @@ class TestCriticalFailureCheck:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == True
+        assert is_flagged
         
     def test_mmse_just_above_boundary(self, agent):
         """Test MMSE just above 12.0"""
@@ -387,7 +387,7 @@ class TestRulePriority:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == True
+        assert is_flagged
         assert "confidence" in message.lower()
         
     def test_multiple_violations(self, agent):
@@ -401,7 +401,7 @@ class TestRulePriority:
         )
         
         # Should be rejected (confidence checked first)
-        assert is_flagged == True
+        assert is_flagged
         
     def test_warning_vs_rejection(self, agent):
         """Test that warnings don't override rejections"""
@@ -414,7 +414,7 @@ class TestRulePriority:
         )
         
         # Should be rejected for Rule 2, not just warned
-        assert is_flagged == True
+        assert is_flagged
         assert "Cross-Modal" in message
 
 
@@ -435,7 +435,7 @@ class TestEdgeCases:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == True
+        assert is_flagged
         
     def test_hundred_percent_confidence(self, agent):
         """Test with 100% confidence"""
@@ -446,7 +446,7 @@ class TestEdgeCases:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_zero_mmse(self, agent):
         """Test with MMSE of 0"""
@@ -470,7 +470,7 @@ class TestEdgeCases:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_negative_atrophy(self, agent):
         """Test with negative atrophy velocity (brain volume increase)"""
@@ -494,7 +494,7 @@ class TestEdgeCases:
         )
         
         # Should be approved (consistent with diagnosis)
-        assert is_flagged == False
+        assert not is_flagged
 
 
 class TestDiagnosticClasses:
@@ -514,7 +514,7 @@ class TestDiagnosticClasses:
             atrophy_velocity=0.5
         )
         
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_very_mild_dementia_class(self, agent):
         """Test Very mild Dementia classification"""
@@ -525,7 +525,7 @@ class TestDiagnosticClasses:
             atrophy_velocity=1.0
         )
         
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_mild_dementia_class(self, agent):
         """Test Mild Dementia classification"""
@@ -536,7 +536,7 @@ class TestDiagnosticClasses:
             atrophy_velocity=1.5
         )
         
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_moderate_dementia_class(self, agent):
         """Test Moderate Dementia classification"""
@@ -547,7 +547,7 @@ class TestDiagnosticClasses:
             atrophy_velocity=2.0
         )
         
-        assert is_flagged == False
+        assert not is_flagged
 
 
 class TestMessageContent:
@@ -622,7 +622,7 @@ class TestCustomConfidenceFloor:
         )
         
         # Should pass with 50% floor
-        assert is_flagged == False
+        assert not is_flagged
         
     def test_higher_confidence_floor(self):
         """Test with higher confidence floor"""
@@ -636,7 +636,7 @@ class TestCustomConfidenceFloor:
         )
         
         # Should fail with 80% floor
-        assert is_flagged == True
+        assert is_flagged
         assert "confidence" in message.lower()
 
 

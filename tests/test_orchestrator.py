@@ -9,7 +9,6 @@ import pandas as pd
 import numpy as np
 import os
 import sys
-from pathlib import Path
 from PIL import Image
 
 # Add src to path

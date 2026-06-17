@@ -155,7 +155,7 @@ if image_path and os.path.exists(image_path):
         st.subheader("📚 Medical Librarian RAG System (Agent 3)")
         st.markdown("**Semantically Retrieved Clinical Context:**")
         st.write(f"> *{rag_context}*")
-        st.caption(f"Model Source Backbone: sentence-transformers/all-MiniLM-L6-v2 (Cached in RAM)")
+        st.caption("Model Source Backbone: sentence-transformers/all-MiniLM-L6-v2 (Cached in RAM)")
 
 else:
     st.error(f"[!] System Error: Failed to cleanly route patient data directories at target location: `{test_folder}`")

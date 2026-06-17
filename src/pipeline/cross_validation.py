@@ -11,8 +11,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets, transforms
 import numpy as np
-from pathlib import Path
-from datetime import datetime
 import json
 from tqdm import tqdm
 from typing import Dict, List, Tuple
@@ -86,8 +84,7 @@ class CrossValidationPipeline:
     def _create_kfold(self):
         """Create K-Fold splitter"""
         if self.stratified:
-            # Get labels for stratification
-            labels = [self.dataset.targets[i] for i in range(len(self.dataset))]
+            # Labels are supplied to .split() at fold-generation time.
             return StratifiedKFold(
                 n_splits=self.n_folds,
                 shuffle=self.shuffle,
@@ -417,7 +414,7 @@ def main():
         stratified=args.stratified
     )
     
-    results = cv_pipeline.run_cross_validation()
+    cv_pipeline.run_cross_validation()
 
 
 if __name__ == '__main__':

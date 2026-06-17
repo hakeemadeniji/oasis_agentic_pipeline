@@ -145,22 +145,22 @@ class TestGradientFlow:
     
     def test_gradients_captured(self, explainer_agent, sample_input):
         """Test that gradients are captured during backward pass"""
-        heatmap = explainer_agent.generate_heatmap(sample_input, target_class=0)
-        
+        explainer_agent.generate_heatmap(sample_input, target_class=0)
+
         # After heatmap generation, gradients should be captured
         assert explainer_agent.gradients.numel() > 0
         
     def test_activations_captured(self, explainer_agent, sample_input):
         """Test that activations are captured during forward pass"""
-        heatmap = explainer_agent.generate_heatmap(sample_input, target_class=0)
-        
+        explainer_agent.generate_heatmap(sample_input, target_class=0)
+
         # After heatmap generation, activations should be captured
         assert explainer_agent.activations.numel() > 0
         
     def test_gradient_shape(self, explainer_agent, sample_input):
         """Test that gradient shape matches activation shape"""
-        heatmap = explainer_agent.generate_heatmap(sample_input, target_class=0)
-        
+        explainer_agent.generate_heatmap(sample_input, target_class=0)
+
         assert explainer_agent.gradients.shape == explainer_agent.activations.shape
         
     def test_model_zero_grad(self, explainer_agent, sample_input):

@@ -1,6 +1,5 @@
 import pytest
 import torch
-import numpy as np
 from PIL import Image
 import os
 import sys
