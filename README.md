@@ -64,7 +64,7 @@ The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence s
                        └─────────┘
 ```
 
-### The 9 Specialized Agents
+### The 12 Specialized Agents
 
 1. **Vision Agent**: ResNet18-based MRI image classifier
 2. **Biomarker Agent**: Clinical data processor with z-score normalization
@@ -297,9 +297,9 @@ OASIS_AGENTIC_PIPELINE/
 │       │   └── multimodal_fusion_int8.onnx  # Quantized model
 │       └── preprocessing/            # Data preprocessing utilities
 │
-├── tests/                            # Test suite (to be implemented)
+├── tests/                            # Pytest suite (agents, API, bias, perf)
 │
-├── DEVELOPMENT_PLAN.md               # Comprehensive architecture guide
+├── EDGE_CLOUD_ARCHITECTURE.md        # Hybrid edge-cloud / NPU design guide
 ├── REQUIREMENTS.md                   # Dependency documentation
 ├── API_DOCUMENTATION.md              # Interface specifications
 ├── TROUBLESHOOTING.md                # Problem-solving guide
@@ -451,7 +451,7 @@ All flagged cases are logged to the HITL queue for human expert review.
 
 ## 📚 Documentation
 
-- **[DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)**: Complete architecture and roadmap
+- **[EDGE_CLOUD_ARCHITECTURE.md](EDGE_CLOUD_ARCHITECTURE.md)**: Hybrid edge-cloud / NPU architecture and LLM routing tiers
 - **[REQUIREMENTS.md](REQUIREMENTS.md)**: Dependency documentation
 - **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)**: Interface specifications
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: Problem-solving guide
