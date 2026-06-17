@@ -8,6 +8,11 @@ transformers==5.10.2
 sentence-transformers==2.2.2
 
 # ONNX Runtime
+# NOTE (Windows ARM64 / Snapdragon NPU): for Hexagon NPU acceleration install the
+# QNN execution provider build instead of the default:
+#     pip uninstall onnxruntime && pip install onnxruntime-qnn
+# DirectML GPU fallback is provided by onnxruntime-directml. The pipeline
+# auto-selects QNN -> DirectML -> CPU at runtime (see src/utils/npu_runtime.py).
 onnx==1.21.0
 onnxruntime==1.26.0
 onnxscript==0.7.0
@@ -113,3 +118,17 @@ h11==0.16.0
 httpcore==1.0.9
 httptools==0.8.0
 huggingface-hub==1.18.0
+
+# ============================================================================
+# Hybrid edge-cloud / local LLM (no paid API tokens)
+# ============================================================================
+# The Clinical Reasoner agent talks to a local Ollama daemon over HTTP using the
+# already-present `requests` package, so there is NO extra Python dependency and
+# NO metered API key. Install the Ollama runtime separately (it is a native app,
+# not a pip package) and pull a small edge model:
+#     winget install Ollama.Ollama   # or https://ollama.com/download
+#     ollama pull llama3.2:3b
+# See scripts/setup_ollama.ps1 / scripts/setup_ollama.sh.
+#
+# The effectiveness PDF report is rendered with Pillow (already listed above),
+# avoiding matplotlib/reportlab which lack reliable Python 3.14 win-arm64 wheels.

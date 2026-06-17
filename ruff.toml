@@ -1,0 +1,15 @@
+# Ruff configuration for the OASIS Agentic Pipeline.
+#
+# The codebase deliberately appends the `src/` directory to sys.path before
+# importing first-party packages (e.g. `from agents.vision... import ...`) so the
+# same modules run from any entry point (CLI, FastAPI, Streamlit, tests). That
+# pattern necessarily places some imports after executable statements, which
+# triggers E402. It is intentional and not a real defect, so we ignore E402
+# globally rather than scatter `# noqa` on every entry point.
+target-version = "py314"
+line-length = 120
+
+[lint]
+# Default rule set (pyflakes + a subset of pycodestyle) minus the intentional
+# import-ordering rule.
+ignore = ["E402"]

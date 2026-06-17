@@ -82,6 +82,12 @@ data/oasis_raw/
 data/processed_tensors/
 data/vector_store/
 
+# OASIS-3 / OASIS-4 downloads (PHI-adjacent imaging; never commit)
+data/oasis_freesurfer/
+data/oasis_scans/
+data/oasis_pup/
+scripts/oasis/.cookies-*.txt
+
 # Model files (too large for git)
 *.pth
 *.onnx
@@ -99,3 +105,7 @@ temp/
 
 # Monitoring data
 monitoring/data/
+
+# Local screenshot/dev tooling
+.shotter/
+web/**/node_modules/
