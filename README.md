@@ -10,13 +10,14 @@
 
 ## 🧠 Overview
 
-The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence system that orchestrates **10 specialized AI agents** to provide comprehensive, explainable, and ethically-validated Alzheimer's disease screening. It runs as a **hybrid edge-cloud** system tuned for **Windows on ARM64 / Snapdragon NPU**, performs all language reasoning on **local Ollama** models (**no paid API tokens**), adds **regional brain volumetry** and **ATN biomarker staging** from OASIS-3/4 derivatives, and ships a **production radiology-grade web console** that runs on any device — including hospital displays and TVs.
+The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence system that orchestrates **12 specialized AI agents** to provide comprehensive, explainable, and ethically-validated Alzheimer's disease screening. It is a **hybrid agentic system**: a free local **Ollama** tier handles tasks it does as well, while the complex clinical reasoning (differential diagnosis, cure-research hypothesis generation) runs on **Claude via `ANTHROPIC_API_KEY`** on a **cost-tiered** basis (Haiku → Sonnet → Opus). Hardware inference is tuned for **Windows on ARM64 / Snapdragon NPU**. It adds **regional brain volumetry** + **ATN biomarker staging** from OASIS-3/4 derivatives, an **interactive brain map** where regions glow with pathology, a **cure-research lab** that mines the cohort for treatment/prevention clues, and a **production radiology-grade web console** that runs on any device — including hospital displays and TVs.
 
-> 📐 [EDGE_CLOUD_ARCHITECTURE.md](EDGE_CLOUD_ARCHITECTURE.md) — hybrid edge-cloud / NPU design.
+> 📐 [EDGE_CLOUD_ARCHITECTURE.md](EDGE_CLOUD_ARCHITECTURE.md) — hybrid edge-cloud / NPU design and the LLM routing tiers.
 > 🧪 [ADVANCED_ANALYTICS.md](ADVANCED_ANALYTICS.md) — diagnostic analyses the OASIS data supports (ATN, Centiloid, BrainAGE, progression).
 > 📊 [docs/OASIS_Pipeline_Effectiveness_Analysis.pdf](docs/OASIS_Pipeline_Effectiveness_Analysis.pdf) — generated effectiveness report.
 
 ![Clinical Console](docs/console_preview.png)
+![Interactive brain map](docs/console_brainmap.png)
 
 ### Key Features
 
@@ -72,9 +73,13 @@ The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence s
 5. **Temporal Analyst**: Longitudinal progression tracking and velocity metrics
 6. **Ethicist Agent**: Compliance guardrails and cross-modal validation
 7. **ONNX Agent**: NPU-optimized INT8 inference (QNN → DirectML → CPU)
-8. **Clinical Reasoner** *(new)*: Hybrid edge-cloud Ollama narrator — grounded clinical summary, no paid API
-9. **Regional Volumetry Analyst** *(new)*: FreeSurfer `aseg` regional volumes → normative z-scores + MTA risk
-10. **ATN Biomarker Profiler** *(new)*: Amyloid/Tau/Neurodegeneration staging (NIA-AA framework, Centiloid)
+8. **Clinical Reasoner**: Hybrid narrator — free Ollama for routine cases, Claude (standard tier) for flagged/low-confidence
+9. **Regional Volumetry Analyst**: FreeSurfer `aseg` regional volumes → normative z-scores + MTA risk
+10. **ATN Biomarker Profiler**: Amyloid/Tau/Neurodegeneration staging (NIA-AA framework, Centiloid)
+11. **Differential Diagnosis Reasoner** *(new)*: Claude (deep tier) ranked differential across dementia etiologies + work-up
+12. **Therapeutic Insight Reasoner** *(new)*: Claude (deep tier) cure-research hypotheses grounded on the cohort-mining engine
+
+> Tasks a small local model does as well (grounded summaries, structured labels) run **free on Ollama**; the genuinely hard reasoning (Agents 11–12) runs on **Claude** with cost-tiered model selection. Everything degrades gracefully to Ollama → deterministic templates when no key/daemon is present.
 
 ---
 
@@ -165,14 +170,24 @@ pip install onnxruntime-qnn        # Qualcomm Hexagon NPU
 The pipeline auto-selects `QNN → DirectML → CPU` at runtime and logs which
 silicon served inference. No code change required.
 
-### 2. Set up the local LLM reasoner (no API keys)
+### 2. Set up the hybrid LLM tiers
+Free local tier (Ollama) for routine tasks:
 ```powershell
 ./scripts/setup_ollama.ps1         # installs Ollama + pulls llama3.2:3b
 ```
 ```bash
 ./scripts/setup_ollama.sh          # Linux / Git Bash
 ```
-Then copy `.env.example` to `.env` and adjust `OLLAMA_EDGE_MODEL` if desired.
+Claude tier for the complex reasoning (Agents 11–12) — set your key in `.env`:
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL_CHEAP=claude-haiku-4-5      # structured/labels
+ANTHROPIC_MODEL_STANDARD=claude-sonnet-4-6  # clinical synthesis
+ANTHROPIC_MODEL_DEEP=claude-opus-4-8        # differential dx + cure-research
+PREFER_FREE_WHEN_CAPABLE=true               # prefer free Ollama where it suffices
+```
+Without a key the system still runs (Ollama → deterministic fallback); with it,
+hard reasoning escalates to Claude at the tier you choose for cost control.
 
 ### 3. Download real OASIS-3 / OASIS-4 data (NITRC username: `hakeemadeniji`)
 ```powershell

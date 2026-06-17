@@ -15,9 +15,10 @@ Alzheimer's disease **screening decision-support** on the OASIS datasets.
 | Constraint | Decision |
 |------------|----------|
 | Runs on a Snapdragon NPU laptop | ONNX Runtime with **QNN (Hexagon NPU) → DirectML → CPU** auto-fallback |
-| No paid API tokens | All LLM reasoning on **local Ollama** (open-weight models) |
-| Must keep working offline at the edge | Deterministic **template fallback** when Ollama is unreachable |
-| Real, deployable clinical signal | **Regional volumetry** from OASIS-3/4 FreeSurfer derivatives |
+| Cost-effective agentic reasoning | **Hybrid LLM**: free local **Ollama** for tasks it does as well; **Claude** (`ANTHROPIC_API_KEY`, cost-tiered Haiku→Sonnet→Opus) for the hard reasoning |
+| Must keep working offline at the edge | Graceful fallback **Claude → Ollama → deterministic template** |
+| Real, deployable clinical signal | **Regional volumetry** + **ATN staging** from OASIS-3/4 FreeSurfer/PUP |
+| Find treatment/cure clues | **Cure-research engine** (deterministic mining) + **Therapeutic Insight agent** (Claude) |
 | Honest effectiveness measurement | Reproducible **PDF analysis** generated from a real evaluation |
 
 ---
@@ -79,19 +80,46 @@ pip install onnxruntime-qnn      # Snapdragon NPU
 
 ---
 
-## 4. Local LLM reasoning (Ollama)
+## 4. Hybrid LLM reasoning (Ollama + Claude)
 
-The **Clinical Reasoner** ([`src/agents/llm/llm_reasoner.py`](src/agents/llm/llm_reasoner.py))
-is the only "generative" agent. It is *grounded*: it summarizes the structured,
-already-computed outputs of the deterministic agents and is explicitly forbidden
-from inventing a diagnosis. The authorized classification still comes from the
-vision model gated by the ethicist.
+[`src/agents/llm/llm_provider.py`](src/agents/llm/llm_provider.py) is the routing
+layer. It sends each task to the cheapest capable backend and degrades
+gracefully (**Claude → Ollama → deterministic template**):
+
+| Task | Tier | Backend |
+|------|------|---------|
+| Grounded summaries, structured labels, routine narration | free | local **Ollama** |
+| Short structured extraction | cheap | **Claude Haiku 4.5** |
+| Clinical synthesis (flagged/low-confidence narration) | standard | **Claude Sonnet 4.6** |
+| Differential diagnosis (Agent 11), cure-research hypotheses (Agent 12) | deep | **Claude Opus 4.8** (adaptive thinking) |
+
+All generative agents are *grounded*: they reason over the structured outputs of
+the deterministic agents and never invent the authorized classification. Set
+`ANTHROPIC_API_KEY` to enable the Claude tiers; `PREFER_FREE_WHEN_CAPABLE=true`
+keeps routine work on free Ollama. Batch API (50% off) is available for bulk
+cohort work.
 
 ```powershell
-./scripts/setup_ollama.ps1          # installs Ollama + pulls llama3.2:3b
+./scripts/setup_ollama.ps1          # free local tier: Ollama + llama3.2:3b
+# set ANTHROPIC_API_KEY in .env to enable the Claude tiers
 ```
 
-Suggested edge models for Snapdragon: `llama3.2:3b`, `phi3.5`, `qwen2.5:3b`.
+New reasoning agents:
+- **Differential Diagnosis** ([`differential_agent.py`](src/agents/llm/differential_agent.py)) —
+  ranked etiologies (AD / FTD / DLB / vascular / normal-aging) + work-up, with a
+  deterministic rule-based prior as both grounding and offline fallback.
+- **Therapeutic Insight / Cure-Research** ([`therapeutic_agent.py`](src/agents/llm/therapeutic_agent.py)) —
+  reasons over [`pipeline/research/cure_research.py`](src/pipeline/research/cure_research.py)
+  (deterministic associations + protective-factor / target mining over OASIS) to
+  generate **testable** research hypotheses. Exposed at `/research`.
+
+Suggested free edge models for Snapdragon: `llama3.2:3b`, `phi3.5`, `qwen2.5:3b`.
+
+## 4b. Interactive brain map
+
+The console's **Brain Map** view renders an anatomical SVG whose regions glow
+with pathology severity (hippocampus/amygdala atrophy, ventricular enlargement)
+driven by the regional-volumetry z-scores — hover any region for its z-score.
 
 ---
 
