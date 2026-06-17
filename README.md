@@ -10,16 +10,25 @@
 
 ## 🧠 Overview
 
-The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence system that orchestrates **7 specialized AI agents** to provide comprehensive, explainable, and ethically-validated Alzheimer's disease diagnoses. The system combines deep learning vision models, clinical biomarker analysis, temporal progression tracking, and retrieval-augmented generation (RAG) to deliver multi-modal diagnostic assessments.
+The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence system that orchestrates **10 specialized AI agents** to provide comprehensive, explainable, and ethically-validated Alzheimer's disease screening. It runs as a **hybrid edge-cloud** system tuned for **Windows on ARM64 / Snapdragon NPU**, performs all language reasoning on **local Ollama** models (**no paid API tokens**), adds **regional brain volumetry** and **ATN biomarker staging** from OASIS-3/4 derivatives, and ships a **production radiology-grade web console** that runs on any device — including hospital displays and TVs.
+
+> 📐 [EDGE_CLOUD_ARCHITECTURE.md](EDGE_CLOUD_ARCHITECTURE.md) — hybrid edge-cloud / NPU design.
+> 🧪 [ADVANCED_ANALYTICS.md](ADVANCED_ANALYTICS.md) — diagnostic analyses the OASIS data supports (ATN, Centiloid, BrainAGE, progression).
+> 📊 [docs/OASIS_Pipeline_Effectiveness_Analysis.pdf](docs/OASIS_Pipeline_Effectiveness_Analysis.pdf) — generated effectiveness report.
+
+![Clinical Console](docs/console_preview.png)
 
 ### Key Features
 
-- 🔬 **Multi-Modal Analysis**: Integrates MRI imaging, clinical biomarkers, and longitudinal data
+- 🔬 **Multi-Modal Analysis**: Integrates MRI imaging, clinical biomarkers, longitudinal data, and regional volumetry
+- 🧠 **Regional Volumetry**: FreeSurfer `aseg` parsing → eTIV-normalized z-scores + medial-temporal-atrophy risk
+- ⚡ **Snapdragon NPU-Optimized**: ONNX Runtime **QNN → DirectML → CPU** auto-fallback for Windows ARM64
+- 🤖 **Local LLM Reasoning**: Ollama-backed Clinical Reasoner (edge-first, optional self-hosted cloud) — **zero paid API keys**
 - 🎯 **Explainable AI**: Grad-CAM heatmaps for visual interpretation of model decisions
 - 🛡️ **Ethical Guardrails**: Built-in compliance agent prevents unsafe or contradictory diagnoses
 - 📚 **RAG-Enhanced**: Medical literature retrieval for evidence-based decision support
-- ⚡ **Hardware-Optimized**: ONNX INT8 quantization for edge deployment
-- 📊 **Human-in-the-Loop**: Active learning queue for continuous model improvement
+- 🗂️ **OASIS-3 / OASIS-4 Ingestion**: Vendored NITRC download scripts (scans, FreeSurfer, PUP) + ARM64 PowerShell wrapper
+- 📊 **Effectiveness Analysis**: One-command, reproducible PDF report (Pillow-rendered, no matplotlib)
 - 🌐 **Interactive Dashboard**: Streamlit-based web interface for real-time diagnostics
 
 ---
@@ -54,7 +63,7 @@ The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence s
                        └─────────┘
 ```
 
-### The 7 Specialized Agents
+### The 9 Specialized Agents
 
 1. **Vision Agent**: ResNet18-based MRI image classifier
 2. **Biomarker Agent**: Clinical data processor with z-score normalization
@@ -62,7 +71,10 @@ The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence s
 4. **Explainer Agent**: Grad-CAM visualization for model interpretability
 5. **Temporal Analyst**: Longitudinal progression tracking and velocity metrics
 6. **Ethicist Agent**: Compliance guardrails and cross-modal validation
-7. **ONNX Agent**: Hardware-optimized INT8 quantized inference engine
+7. **ONNX Agent**: NPU-optimized INT8 inference (QNN → DirectML → CPU)
+8. **Clinical Reasoner** *(new)*: Hybrid edge-cloud Ollama narrator — grounded clinical summary, no paid API
+9. **Regional Volumetry Analyst** *(new)*: FreeSurfer `aseg` regional volumes → normative z-scores + MTA risk
+10. **ATN Biomarker Profiler** *(new)*: Amyloid/Tau/Neurodegeneration staging (NIA-AA framework, Centiloid)
 
 ---
 
@@ -105,7 +117,16 @@ python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA: {
 
 ### Running the System
 
-#### Option 1: Streamlit Dashboard (Recommended)
+#### Option 1: Production Clinical Console (Recommended)
+```bash
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000      # full service
+# or, dependency-light edge console:
+python scripts/console_server.py --port 8800
+```
+Access the console at `http://localhost:8000/app/` (or `:8800/app/`). See
+[Production Clinical Console](#️-production-clinical-console-radiology-grade-web-ui).
+
+#### Option 1b: Streamlit Dashboard (legacy demo)
 ```bash
 streamlit run src/orchestrator/dashboard.py
 ```
@@ -130,6 +151,93 @@ cmo.execute_comprehensive_diagnosis(
     mock_subject_id="OAS2_0001"
 )
 ```
+
+---
+
+## ⚡ Edge & Hybrid-Cloud Setup (Snapdragon NPU + Ollama)
+
+### 1. Enable the Snapdragon NPU (optional but recommended)
+```powershell
+pip uninstall onnxruntime
+pip install onnxruntime-qnn        # Qualcomm Hexagon NPU
+# or: pip install onnxruntime-directml   # ARM64 GPU fallback
+```
+The pipeline auto-selects `QNN → DirectML → CPU` at runtime and logs which
+silicon served inference. No code change required.
+
+### 2. Set up the local LLM reasoner (no API keys)
+```powershell
+./scripts/setup_ollama.ps1         # installs Ollama + pulls llama3.2:3b
+```
+```bash
+./scripts/setup_ollama.sh          # Linux / Git Bash
+```
+Then copy `.env.example` to `.env` and adjust `OLLAMA_EDGE_MODEL` if desired.
+
+### 3. Download real OASIS-3 / OASIS-4 data (NITRC username: `hakeemadeniji`)
+```powershell
+cd scripts\oasis
+# FreeSurfer derivatives feed the Regional Volumetry agent:
+./Download-Oasis.ps1 -Type freesurfer -InputCsv examples\freesurfer_ids.csv -OutDir ..\..\data\oasis_freesurfer -Native
+```
+```bash
+cd scripts/oasis
+./download_oasis_freesurfer_tar.sh examples/freesurfer_ids.csv ../../data/oasis_freesurfer hakeemadeniji
+```
+See [scripts/oasis/README.md](scripts/oasis/README.md) for all four scripts
+(scans, freesurfer, pup, pup partial-match).
+
+### 4. Generate the effectiveness PDF report
+```bash
+python src/pipeline/evaluation/effectiveness_report.py --max-per-class 60
+# -> docs/OASIS_Pipeline_Effectiveness_Analysis.pdf
+```
+
+### 5. (Re)train the vision agent with class balancing
+The bundled OASIS slices are heavily imbalanced; the balanced trainer fixes the
+majority-class collapse and backs up prior weights:
+```bash
+python src/pipeline/train_balanced.py --per-class 400 --epochs 6
+```
+
+### 6. Export the NPU INT8 artifacts
+```bash
+python src/pipeline/onnx_inference/export_vision_onnx.py    # vision classifier -> INT8
+python src/pipeline/onnx_inference/compile_npu.py           # multimodal fusion -> INT8
+```
+
+---
+
+## 🖥️ Production Clinical Console (radiology-grade web UI)
+
+A production web console replaces the Streamlit demo as the primary interface:
+MRI viewer with adjustable **Grad-CAM overlay**, color-coded verdict + confidence
+ring, ethics banner, class-probability bars, **regional volumetry z-scores**,
+**ATN biomarker profile**, and the Ollama reasoner narrative. It is a
+dependency-free static SPA (vanilla JS/CSS — no CDN), so it runs on any browser
+and is responsive from a laptop to a **large hospital display or TV**.
+
+**Two ways to serve it:**
+
+```bash
+# A) Full service (FastAPI + RAG + batch); console at http://localhost:8000/app/
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+
+# B) Lightweight EDGE console (stdlib only — no transformers/RAG; ideal for a
+#    Snapdragon kiosk wired to a display). Console at http://localhost:8800/app/
+python scripts/console_server.py --port 8800
+```
+
+**Kiosk / unattended mode** for hospital displays & TVs — auto-loads a scan and
+runs the full analysis, optionally looping:
+```
+http://<host>:8800/app/?auto=1          # run once on load
+http://<host>:8800/app/?auto=1&loop=1   # cycle continuously (waiting-room display)
+```
+
+Cross-device: the console is plain HTML/CSS/JS served over HTTP, so any device on
+the network (a second hospital monitor, a wall-mounted TV, a tablet) just opens
+the URL — no install. Layout scales up automatically at ≥2200px for big screens.
 
 ---
 
