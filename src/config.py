@@ -129,18 +129,14 @@ class EdgeCloudSettings:
         default_factory=lambda: os.environ.get("OLLAMA_EDGE_MODEL", "llama3.2:3b")
     )
     # Cloud tier: an *optional* self-hosted Ollama endpoint (still free / no API key).
-    ollama_cloud_url: str = field(
-        default_factory=lambda: os.environ.get("OLLAMA_CLOUD_URL", "")
-    )
+    ollama_cloud_url: str = field(default_factory=lambda: os.environ.get("OLLAMA_CLOUD_URL", ""))
     ollama_cloud_model: str = field(
         default_factory=lambda: os.environ.get("OLLAMA_CLOUD_MODEL", "llama3.1:8b")
     )
     llm_timeout_seconds: float = field(
         default_factory=lambda: _env_float("LLM_TIMEOUT_SECONDS", 60.0)
     )
-    llm_temperature: float = field(
-        default_factory=lambda: _env_float("LLM_TEMPERATURE", 0.2)
-    )
+    llm_temperature: float = field(default_factory=lambda: _env_float("LLM_TEMPERATURE", 0.2))
 
     # ---- Edge -> cloud escalation policy ----------------------------------
     # When the edge prediction confidence drops below this floor (or an agent is
@@ -151,10 +147,52 @@ class EdgeCloudSettings:
     )
     prefer_cloud: bool = field(default_factory=lambda: _env_bool("PREFER_CLOUD", False))
 
-    # ---- Ethical guardrails ----------------------------------------------
-    confidence_floor: float = field(
-        default_factory=lambda: _env_float("CONFIDENCE_FLOOR", 60.0)
+    # ---- Security Configuration ---------------------------------------------
+    enable_auth: bool = field(default_factory=lambda: _env_bool("ENABLE_AUTH", True))
+    # Relaxed-security DEV mode for the API auth layer. This is an EXPLICIT flag and
+    # must NEVER be inferred from the compute device — a CPU/edge box is still
+    # production, and inferring dev-mode from "device == cpu" silently disables the
+    # JWT-secret validation on exactly the hardware this project targets.
+    auth_dev_mode: bool = field(default_factory=lambda: _env_bool("AUTH_DEV_MODE", True))
+    jwt_secret: str = field(
+        default_factory=lambda: os.environ.get("JWT_SECRET", "dev-secret-key-change-in-production")
     )
+    access_token_expire_minutes: int = field(
+        default_factory=lambda: _env_int("ACCESS_TOKEN_EXPIRE_MINUTES", 30)
+    )
+    refresh_token_expire_days: int = field(
+        default_factory=lambda: _env_int("REFRESH_TOKEN_EXPIRE_DAYS", 7)
+    )
+
+    # OIDC Configuration
+    oidc_enabled: bool = field(default_factory=lambda: _env_bool("OIDC_ENABLED", False))
+    oidc_discovery_url: str = field(
+        default_factory=lambda: os.environ.get("OIDC_DISCOVERY_URL", "")
+    )
+    oidc_client_id: str = field(default_factory=lambda: os.environ.get("OIDC_CLIENT_ID", ""))
+    oidc_client_secret: str = field(
+        default_factory=lambda: os.environ.get("OIDC_CLIENT_SECRET", "")
+    )
+
+    # Rate Limiting Configuration
+    enable_rate_limiting: bool = field(
+        default_factory=lambda: _env_bool("ENABLE_RATE_LIMITING", True)
+    )
+    rate_limit_admin: str = field(
+        default_factory=lambda: os.environ.get("RATE_LIMIT_ADMIN", "1000/minute")
+    )
+    rate_limit_clinician: str = field(
+        default_factory=lambda: os.environ.get("RATE_LIMIT_CLINICIAN", "100/minute")
+    )
+    rate_limit_researcher: str = field(
+        default_factory=lambda: os.environ.get("RATE_LIMIT_RESEARCHER", "50/minute")
+    )
+    rate_limit_default: str = field(
+        default_factory=lambda: os.environ.get("RATE_LIMIT_DEFAULT", "20/minute")
+    )
+
+    # ---- Ethical guardrails ----------------------------------------------
+    confidence_floor: float = field(default_factory=lambda: _env_float("CONFIDENCE_FLOOR", 60.0))
 
     # ---- OASIS-3 / OASIS-4 data access ------------------------------------
     nitrc_username: str = field(
@@ -171,17 +209,13 @@ class EdgeCloudSettings:
         default_factory=lambda: os.environ.get("OASIS_SCANS_ROOT", "data/oasis_scans")
     )
     # PET Unified Pipeline (PUP) outputs -> amyloid/tau SUVR for the ATN A/T axes.
-    pup_root: str = field(
-        default_factory=lambda: os.environ.get("PUP_ROOT", "data/oasis_pup")
-    )
+    pup_root: str = field(default_factory=lambda: os.environ.get("PUP_ROOT", "data/oasis_pup"))
     # Amyloid-positivity threshold on the Centiloid scale.
     amyloid_positive_centiloid: float = field(
         default_factory=lambda: _env_float("AMYLOID_POSITIVE_CENTILOID", 20.0)
     )
     # Tau-positivity threshold on meta-ROI SUVR (e.g. AV1451 temporal meta-ROI).
-    tau_positive_suvr: float = field(
-        default_factory=lambda: _env_float("TAU_POSITIVE_SUVR", 1.27)
-    )
+    tau_positive_suvr: float = field(default_factory=lambda: _env_float("TAU_POSITIVE_SUVR", 1.27))
 
     def resolve_device(self) -> str:
         """Resolve ``device='auto'`` to a concrete torch device string."""
@@ -206,7 +240,8 @@ class EdgeCloudSettings:
         anth = (
             f"anthropic=on(cheap={self.anthropic_model_cheap},std={self.anthropic_model_standard},"
             f"deep={self.anthropic_model_deep})"
-            if self.anthropic_available() else "anthropic=off"
+            if self.anthropic_available()
+            else "anthropic=off"
         )
         return (
             f"device={self.resolve_device()} | onnx_providers={self.onnx_providers} | "
