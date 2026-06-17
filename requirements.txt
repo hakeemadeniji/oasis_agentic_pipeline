@@ -34,10 +34,13 @@ nibabel==5.4.2
 tifffile==2026.6.1
 
 # Web Framework & API
+# NOTE: fastapi/starlette are loosened to ranges — the original exact pins were
+# internally inconsistent (fastapi 0.115.0 requires an older starlette than the
+# pinned 1.2.1). Letting pip resolve fastapi+starlette together avoids the clash.
 streamlit==1.58.0
-fastapi==0.115.0
-uvicorn==0.49.0
-starlette==1.2.1
+fastapi>=0.115.0
+uvicorn>=0.49.0
+starlette>=0.37.2
 python-multipart==0.0.32
 websockets==16.0
 
