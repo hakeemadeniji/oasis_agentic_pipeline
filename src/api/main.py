@@ -601,8 +601,14 @@ async def export_results(
     # path and the Content-Disposition header. Allow only safe token characters.
     if not re.fullmatch(r"[A-Za-z0-9_-]+", job_id):
         raise HTTPException(status_code=400, detail="Invalid job_id")
-    results_dir = Path(ROOT_DIR) / "data" / "batch_results"
-    result_file = results_dir / f"{job_id}.json"
+    results_dir = (Path(ROOT_DIR) / "data" / "batch_results").resolve()
+    result_file = (results_dir / f"{job_id}.json").resolve()
+
+    # Enforce that resolved file path stays within the expected export directory
+    try:
+        result_file.relative_to(results_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id")
 
     if not result_file.exists():
         raise HTTPException(status_code=404, detail="Results not found")
