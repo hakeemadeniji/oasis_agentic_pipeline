@@ -410,4 +410,32 @@ html[data-theme="t8"] {
   --glow-1: #241405; --glow-2: #1e0f05;
   --topbar-1: rgba(18, 16, 10, .96); --topbar-2: rgba(12, 10, 6, .93);
 }
+
+/* High-contrast accessibility palette: pure-black surfaces, white text, bright
+   high-saturation accents, and solid bright borders (WCAG AAA-oriented). */
+html[data-theme="hc"] {
+  --bg: #000000; --bg-2: #000000; --panel: #000000; --panel-2: #050505; --card: #000000;
+  --line: #ffffff; --line-soft: #b9c0c8;
+  --txt: #ffffff; --txt-dim: #f0f0f0; --txt-mute: #d2d2d2;
+  --accent: #ffd400; --accent-2: #00e5ff; --purple: #d6a0ff;
+  --good: #00e676; --warn: #ffd400; --bad: #ff5c5c;
+  --glow-1: #000000; --glow-2: #000000;
+  --topbar-1: #000000; --topbar-2: #000000;
+}
+/* Strong keyboard focus + maximal-contrast tinted elements in HC mode. */
+html[data-theme="hc"] :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+html[data-theme="hc"] .ethics-banner.ok { color: #00e676; }
+html[data-theme="hc"] .ethics-banner.flag,
+html[data-theme="hc"] .narrative.flagged,
+html[data-theme="hc"] .hyp-badge.high { color: #ff8a8a; }
+
+/* Respect the OS "reduce motion" preference (accessibility, all themes). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 @media (min-width: 3500px) { html { font-size: 28px; } }
