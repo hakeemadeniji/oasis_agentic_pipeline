@@ -28,19 +28,17 @@ model gated by the ethicist.
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
-
-import requests
+from typing import Any, Dict
 
 _SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if _SRC_DIR not in sys.path:
     sys.path.append(_SRC_DIR)
 
 from config import get_settings  # noqa: E402
+from agents.llm.llm_provider import get_provider, TIER_STANDARD  # noqa: E402
 
 
 SYSTEM_PROMPT = (
@@ -68,69 +66,30 @@ SYSTEM_PROMPT = (
 @dataclass
 class ReasonerResult:
     narrative: str
-    tier: str           # "edge" | "cloud" | "template"
-    model: str
-    escalated: bool
+    tier: str           # backend: "anthropic" | "ollama" | "template"
+    model: str          # concrete model id / provider string
+    escalated: bool     # True when a flagged/low-confidence case used Claude
 
 
 class ClinicalReasonerAgent:
-    """Hybrid edge-cloud LLM narrator backed entirely by local Ollama."""
+    """
+    Hybrid clinical narrator (Agent 8).
+
+    Routine, high-confidence cases are summarized for free on local Ollama; cases
+    the ethicist flagged or that the model is unsure about escalate to Claude
+    (standard tier) via the hybrid provider. Falls back to a deterministic
+    template when no backend is reachable.
+    """
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.enabled = self.settings.enable_llm
-        self._edge_ready: Optional[bool] = None
-        if self.enabled:
-            print(
-                f"[*] Clinical Reasoner (Agent 8) -> Ollama edge model "
-                f"'{self.settings.ollama_edge_model}' @ {self.settings.ollama_edge_url}"
-                + (
-                    f" | cloud fallback '{self.settings.ollama_cloud_model}'"
-                    if self.settings.cloud_available()
-                    else " | cloud fallback disabled"
-                )
-            )
-        else:
-            print("[*] Clinical Reasoner (Agent 8) disabled -> deterministic template mode.")
-
-    # ------------------------------------------------------------------ utils
-    def _ping(self, base_url: str) -> bool:
-        try:
-            resp = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=3)
-            return resp.status_code == 200
-        except requests.RequestException:
-            return False
-
-    def edge_ready(self) -> bool:
-        """Cache whether the local Ollama daemon is reachable (avoid re-probing)."""
-        if self._edge_ready is None:
-            self._edge_ready = self.enabled and self._ping(self.settings.ollama_edge_url)
-        return self._edge_ready
-
-    def _call_ollama(self, base_url: str, model: str, prompt: str) -> Optional[str]:
-        """Single non-streaming Ollama generate call. Returns None on failure."""
-        url = f"{base_url.rstrip('/')}/api/generate"
-        payload = {
-            "model": model,
-            "system": SYSTEM_PROMPT,
-            "prompt": prompt,
-            "stream": False,
-            "options": {"temperature": self.settings.llm_temperature},
-        }
-        try:
-            resp = requests.post(url, json=payload, timeout=self.settings.llm_timeout_seconds)
-            resp.raise_for_status()
-            data = resp.json()
-            text = (data.get("response") or "").strip()
-            return text or None
-        except (requests.RequestException, json.JSONDecodeError, ValueError) as exc:
-            print(f"[llm_reasoner] Ollama call to {model}@{base_url} failed: {exc}")
-            return None
+        self.enabled = self.settings.enable_llm or self.settings.anthropic_available()
+        self.provider = get_provider()
+        print(f"[*] Clinical Reasoner (Agent 8) -> hybrid provider | {self.settings.summary()}")
 
     # ----------------------------------------------------------------- routing
     def _should_escalate(self, evidence: Dict[str, Any]) -> bool:
-        if not self.settings.cloud_available():
-            return False
+        """Force a Claude (paid) synthesis for flagged or low-confidence cases."""
         if self.settings.prefer_cloud:
             return True
         confidence = float(evidence.get("confidence", 100.0))
@@ -142,43 +101,27 @@ class ClinicalReasonerAgent:
         """
         Produce a clinical narrative from the consolidated agent evidence dict.
 
-        ``evidence`` is a flat dict of the structured outputs (prediction,
-        confidence, mmse, age, atrophy velocity, regional volumetry summary,
-        rag context, ethics verdict).
+        Routine cases prefer free Ollama; flagged/low-confidence cases escalate
+        to Claude (when ``ANTHROPIC_API_KEY`` is configured).
         """
         prompt = self._build_prompt(evidence)
-
-        if not self.enabled:
-            return ReasonerResult(self._template(evidence), "template", "deterministic", False)
-
         escalate = self._should_escalate(evidence)
-
-        # Cloud tier (still self-hosted Ollama) when escalation is warranted.
-        if escalate and self.settings.cloud_available():
-            text = self._call_ollama(
-                self.settings.ollama_cloud_url, self.settings.ollama_cloud_model, prompt
-            )
-            if text:
-                return ReasonerResult(text, "cloud", self.settings.ollama_cloud_model, True)
-
-        # Edge tier (local Snapdragon device).
-        if self.edge_ready():
-            text = self._call_ollama(
-                self.settings.ollama_edge_url, self.settings.ollama_edge_model, prompt
-            )
-            if text:
-                return ReasonerResult(text, "edge", self.settings.ollama_edge_model, False)
-
-        # Last resort cloud try if edge is down but escalation wasn't triggered.
-        if self.settings.cloud_available():
-            text = self._call_ollama(
-                self.settings.ollama_cloud_url, self.settings.ollama_cloud_model, prompt
-            )
-            if text:
-                return ReasonerResult(text, "cloud", self.settings.ollama_cloud_model, True)
-
-        # Deterministic fallback keeps the edge node operational offline.
-        return ReasonerResult(self._template(evidence), "template", "deterministic", False)
+        result = self.provider.complete(
+            system=SYSTEM_PROMPT,
+            prompt=prompt,
+            tier=TIER_STANDARD,
+            # Routine cases are free-capable (Ollama is fine); escalate forces Claude.
+            free_capable=not escalate,
+            max_tokens=700,
+            template_fallback=self._template(evidence),
+        )
+        backend = result.provider.split(":")[0]
+        return ReasonerResult(
+            narrative=result.text,
+            tier=backend,
+            model=result.provider,
+            escalated=escalate and backend == "anthropic",
+        )
 
     def _build_prompt(self, e: Dict[str, Any]) -> str:
         rag_context = e.get("rag_context") or []

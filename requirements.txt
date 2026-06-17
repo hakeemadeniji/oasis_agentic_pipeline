@@ -120,15 +120,18 @@ httptools==0.8.0
 huggingface-hub==1.18.0
 
 # ============================================================================
-# Hybrid edge-cloud / local LLM (no paid API tokens)
+# Hybrid LLM: free local Ollama + cost-tiered Anthropic Claude
 # ============================================================================
-# The Clinical Reasoner agent talks to a local Ollama daemon over HTTP using the
-# already-present `requests` package, so there is NO extra Python dependency and
-# NO metered API key. Install the Ollama runtime separately (it is a native app,
-# not a pip package) and pull a small edge model:
+# The pipeline is hybrid. Free local Ollama (HTTP via the already-present
+# `requests` package) handles tasks it does as well; the official Anthropic SDK
+# handles the complex agentic reasoning (differential dx, cure-research) on a
+# cost-tiered basis (Haiku/Sonnet/Opus — you control the spend in .env).
+anthropic>=0.69.0
+# Ollama is a native app (not a pip package). Install + pull a small edge model:
 #     winget install Ollama.Ollama   # or https://ollama.com/download
 #     ollama pull llama3.2:3b
-# See scripts/setup_ollama.ps1 / scripts/setup_ollama.sh.
+# Set ANTHROPIC_API_KEY to enable the Claude tier; without it the system runs in
+# reduced (Ollama/deterministic) form. See scripts/setup_ollama.*.
 #
 # The effectiveness PDF report is rendered with Pillow (already listed above),
 # avoiding matplotlib/reportlab which lack reliable Python 3.14 win-arm64 wheels.

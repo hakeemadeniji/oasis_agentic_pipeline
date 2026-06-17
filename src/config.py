@@ -98,7 +98,28 @@ class EdgeCloudSettings:
         default_factory=lambda: os.environ.get("QNN_HTP_PERFORMANCE_MODE", "high_performance")
     )
 
-    # ---- Language reasoning (Ollama, no paid tokens) ----------------------
+    # ---- Anthropic API (cost-tiered; used for the complex agentic tasks) --
+    # The pipeline is HYBRID: free local Ollama handles tasks it does as well,
+    # and Claude handles the hard reasoning. Tiers are chosen for cost-control
+    # (you decide the spend): cheap=Haiku, standard=Sonnet, deep=Opus.
+    enable_anthropic: bool = field(default_factory=lambda: _env_bool("ENABLE_ANTHROPIC", True))
+    anthropic_api_key: str = field(default_factory=lambda: os.environ.get("ANTHROPIC_API_KEY", ""))
+    anthropic_model_cheap: str = field(
+        default_factory=lambda: os.environ.get("ANTHROPIC_MODEL_CHEAP", "claude-haiku-4-5")
+    )
+    anthropic_model_standard: str = field(
+        default_factory=lambda: os.environ.get("ANTHROPIC_MODEL_STANDARD", "claude-sonnet-4-6")
+    )
+    anthropic_model_deep: str = field(
+        default_factory=lambda: os.environ.get("ANTHROPIC_MODEL_DEEP", "claude-opus-4-8")
+    )
+    # When True, tasks flagged "free-capable" prefer local Ollama before paying
+    # for Claude — the cost-effective default.
+    prefer_free_when_capable: bool = field(
+        default_factory=lambda: _env_bool("PREFER_FREE_WHEN_CAPABLE", True)
+    )
+
+    # ---- Language reasoning (Ollama, free local tier) ---------------------
     enable_llm: bool = field(default_factory=lambda: _env_bool("ENABLE_LLM", True))
     # Edge tier: local Ollama daemon on the Snapdragon device.
     ollama_edge_url: str = field(
@@ -178,12 +199,19 @@ class EdgeCloudSettings:
     def cloud_available(self) -> bool:
         return bool(self.ollama_cloud_url.strip())
 
+    def anthropic_available(self) -> bool:
+        return self.enable_anthropic and bool(self.anthropic_api_key.strip())
+
     def summary(self) -> str:
+        anth = (
+            f"anthropic=on(cheap={self.anthropic_model_cheap},std={self.anthropic_model_standard},"
+            f"deep={self.anthropic_model_deep})"
+            if self.anthropic_available() else "anthropic=off"
+        )
         return (
             f"device={self.resolve_device()} | onnx_providers={self.onnx_providers} | "
-            f"llm={'on' if self.enable_llm else 'off'} "
-            f"(edge={self.ollama_edge_model}@{self.ollama_edge_url}"
-            f"{', cloud=' + self.ollama_cloud_model if self.cloud_available() else ', cloud=disabled'})"
+            f"ollama={'on' if self.enable_llm else 'off'}"
+            f"(edge={self.ollama_edge_model}) | {anth}"
         )
 
 
