@@ -52,8 +52,14 @@ from pipeline.research.cure_research import CureResearchEngine  # noqa: E402
 from api.heatmap import render_gradcam  # noqa: E402
 
 CLASS_NAMES = ["Mild Dementia", "Moderate Dementia", "Non Demented", "Very mild Dementia"]
-_MIME = {".html": "text/html", ".css": "text/css", ".js": "application/javascript",
-         ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon"}
+_MIME = {
+    ".html": "text/html",
+    ".css": "text/css",
+    ".js": "application/javascript",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+}
 
 
 class Engine:
@@ -91,12 +97,14 @@ class Engine:
             amyloid_threshold_cl=self.settings.amyloid_positive_centiloid,
             tau_threshold_suvr=self.settings.tau_positive_suvr,
         )
-        self.tf = transforms.Compose([
-            transforms.Grayscale(num_output_channels=1),
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5], std=[0.5]),
-        ])
+        self.tf = transforms.Compose(
+            [
+                transforms.Grayscale(num_output_channels=1),
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5], std=[0.5]),
+            ]
+        )
 
     def diagnose(self, req: dict) -> dict:
         pdata = req.get("patient_data", {})
@@ -120,8 +128,12 @@ class Engine:
             }
             hm = self.explainer.generate_heatmap(x, target_class=idx)
             layers = render_gradcam(image, hm)
-            explain = {"heatmap_available": True, "base_png": layers["base"],
-                       "heatmap_png": layers["heatmap"], "overlay_png": layers["overlay"]}
+            explain = {
+                "heatmap_available": True,
+                "base_png": layers["base"],
+                "heatmap_png": layers["heatmap"],
+                "overlay_png": layers["overlay"],
+            }
 
         # Regional volumetry
         vol = self.volumetry.analyze_subject(long_id) if long_id else None
@@ -149,23 +161,39 @@ class Engine:
 
         biomarker = {
             "age_risk": "elevated" if age > 70 else "normal",
-            "mmse_category": ("severe_impairment" if mmse < 10 else "moderate_impairment" if mmse < 20
-                              else "mild_impairment" if mmse < 24 else "normal"),
+            "mmse_category": (
+                "severe_impairment"
+                if mmse < 10
+                else "moderate_impairment"
+                if mmse < 20
+                else "mild_impairment"
+                if mmse < 24
+                else "normal"
+            ),
         }
 
         flagged, msg = self.ethicist.audit_diagnostic_proposal(
-            vision_result["class"], vision_result["confidence"], mmse, temporal["atrophy_velocity"])
+            vision_result["class"], vision_result["confidence"], mmse, temporal["atrophy_velocity"]
+        )
         final = vision_result["class"] if not flagged else "DIAGNOSIS_BLOCKED"
 
         hippo_z = (sum(hippo_zs) / len(hippo_zs)) if hippo_zs else None
         evidence = {
-            "prediction": vision_result["class"], "authorized_class": final,
-            "confidence": vision_result["confidence"], "age": age, "mmse": mmse,
-            "clinical_trend": temporal["trend"], "atrophy_velocity": 0.0,
-            "volumetry_summary": vol.summary, "ethics_flagged": flagged,
-            "ethics_message": msg, "rag_context": [],
+            "prediction": vision_result["class"],
+            "authorized_class": final,
+            "confidence": vision_result["confidence"],
+            "age": age,
+            "mmse": mmse,
+            "clinical_trend": temporal["trend"],
+            "atrophy_velocity": 0.0,
+            "volumetry_summary": vol.summary,
+            "ethics_flagged": flagged,
+            "ethics_message": msg,
+            "rag_context": [],
             "hippocampus_z": hippo_z,
-            "atn_a": atn.a_status, "atn_t": atn.t_status, "atn_n": atn.n_status,
+            "atn_a": atn.a_status,
+            "atn_t": atn.t_status,
+            "atn_n": atn.n_status,
             "atn_category": atn.category,
         }
         reasoning = self.reasoner.synthesize(evidence)
@@ -225,11 +253,18 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         if path == "/health":
-            return self._json(200, {"status": "healthy", "version": "edge-console", "device": str(ENGINE.device)})
+            return self._json(
+                200, {"status": "healthy", "version": "edge-console", "device": str(ENGINE.device)}
+            )
         if path == "/models/info":
-            return self._json(200, {"device": str(ENGINE.device),
-                                    "acceleration": ENGINE.settings.onnx_providers,
-                                    "llm": ENGINE.settings.summary()})
+            return self._json(
+                200,
+                {
+                    "device": str(ENGINE.device),
+                    "acceleration": ENGINE.settings.onnx_providers,
+                    "llm": ENGINE.settings.summary(),
+                },
+            )
         if path == "/api/sample":
             return self._sample(parse_qs(parsed.query).get("label", [None])[0])
         if path == "/research":
@@ -238,7 +273,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:  # pragma: no cover
                 return self._json(500, {"detail": str(e)})
         if path.startswith("/app/"):
-            return self._static(path[len("/app/"):] or "index.html")
+            return self._static(path[len("/app/") :] or "index.html")
         return self._json(404, {"detail": "not found"})
 
     def do_POST(self):
@@ -273,8 +308,14 @@ class Handler(BaseHTTPRequestHandler):
             img = Image.open(io.BytesIO(fh.read())).convert("L")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
-        self._json(200, {"true_label": chosen, "filename": fname,
-                         "image_base64": base64.b64encode(buf.getvalue()).decode()})
+        self._json(
+            200,
+            {
+                "true_label": chosen,
+                "filename": fname,
+                "image_base64": base64.b64encode(buf.getvalue()).decode(),
+            },
+        )
 
 
 def main():
@@ -283,7 +324,9 @@ def main():
     ap.add_argument("--port", type=int, default=8800)
     ap.add_argument("--host", default="127.0.0.1")
     args = ap.parse_args()
-    print("[*] Initializing edge console engine (vision + Grad-CAM + volumetry + ethics + reasoner)…")
+    print(
+        "[*] Initializing edge console engine (vision + Grad-CAM + volumetry + ethics + reasoner)…"
+    )
     ENGINE = Engine()
     print(f"[+] OASIS Clinical Console ready -> http://{args.host}:{args.port}/app/")
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()

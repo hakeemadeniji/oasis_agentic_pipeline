@@ -33,16 +33,28 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 # Tracer detection from PUP id / filename.
-AMYLOID_TRACERS = {"av45": "AV45", "fbp": "AV45", "florbetapir": "AV45",
-                   "pib": "PIB", "fbb": "FBB", "florbetaben": "FBB", "nav": "AV45"}
+AMYLOID_TRACERS = {
+    "av45": "AV45",
+    "fbp": "AV45",
+    "florbetapir": "AV45",
+    "pib": "PIB",
+    "fbb": "FBB",
+    "florbetaben": "FBB",
+    "nav": "AV45",
+}
 TAU_TRACERS = {"av1451": "AV1451", "flortaucipir": "AV1451", "mk6240": "MK6240", "tau": "AV1451"}
 
 # Cortical amyloid-summary ROIs (FreeSurfer aparc substrings).
 CORTICAL_SUMMARY = [
     "precuneus",
-    "superiorfrontal", "rostralmiddlefrontal", "caudalmiddlefrontal", "lateralorbitofrontal",
-    "medialorbitofrontal",           # ~ gyrus rectus
-    "superiortemporal", "middletemporal", "inferiortemporal",
+    "superiorfrontal",
+    "rostralmiddlefrontal",
+    "caudalmiddlefrontal",
+    "lateralorbitofrontal",
+    "medialorbitofrontal",  # ~ gyrus rectus
+    "superiortemporal",
+    "middletemporal",
+    "inferiortemporal",
 ]
 # Tau temporal/Braak meta-ROI ROIs.
 TAU_METAROI = ["entorhinal", "amygdala", "fusiform", "inferiortemporal", "middletemporal"]
@@ -67,10 +79,13 @@ class PUPResult:
     def to_dict(self) -> Dict[str, object]:
         def r(x):
             return None if x is None else round(x, 3)
+
         return {
             "subject_id": self.subject_id,
             "amyloid_suvr": r(self.amyloid_suvr),
-            "amyloid_centiloid": None if self.amyloid_centiloid is None else round(self.amyloid_centiloid, 1),
+            "amyloid_centiloid": None
+            if self.amyloid_centiloid is None
+            else round(self.amyloid_centiloid, 1),
             "amyloid_tracer": self.amyloid_tracer,
             "amyloid_positive": self.amyloid_positive,
             "tau_suvr": r(self.tau_suvr),
@@ -84,8 +99,12 @@ class PUPResult:
 class PUPPetParser:
     """Parses PUP regional SUVR outputs into amyloid/tau summaries."""
 
-    def __init__(self, pup_root: Optional[str] = None,
-                 amyloid_threshold_cl: float = 20.0, tau_threshold_suvr: float = 1.27):
+    def __init__(
+        self,
+        pup_root: Optional[str] = None,
+        amyloid_threshold_cl: float = 20.0,
+        tau_threshold_suvr: float = 1.27,
+    ):
         self.pup_root = pup_root
         self.amyloid_threshold_cl = amyloid_threshold_cl
         self.tau_threshold_suvr = tau_threshold_suvr
@@ -138,8 +157,13 @@ class PUPPetParser:
                 return None
 
         # Long format: a region column + a suvr/value column.
-        roi_col = next((i for i, h in enumerate(header) if h in ("roi", "region", "label", "structure")), None)
-        val_col = next((i for i, h in enumerate(header) if "suvr" in h or h in ("value", "mean", "fsuvr")), None)
+        roi_col = next(
+            (i for i, h in enumerate(header) if h in ("roi", "region", "label", "structure")), None
+        )
+        val_col = next(
+            (i for i, h in enumerate(header) if "suvr" in h or h in ("value", "mean", "fsuvr")),
+            None,
+        )
         if roi_col is not None and val_col is not None and roi_col != val_col:
             for row in rows[1:]:
                 if len(row) > max(roi_col, val_col):
@@ -154,7 +178,7 @@ class PUPPetParser:
             for i, h in enumerate(header):
                 if i < len(rows[1]):
                     v = to_float(rows[1][i])
-                    if v is not None and 0.2 < v < 6.0:   # plausible SUVR range
+                    if v is not None and 0.2 < v < 6.0:  # plausible SUVR range
                         roi_suvr[h] = v
             if roi_suvr:
                 return roi_suvr
@@ -197,7 +221,9 @@ class PUPPetParser:
         result = {"modality": modality, "tracer": tracer, "files": used}
         if modality == "amyloid":
             mc = roi_suvr.get("mcsuvr") or roi_suvr.get("cortmean") or roi_suvr.get("tot_cortmean")
-            result["suvr"] = mc if mc is not None else self._mean_matching(roi_suvr, CORTICAL_SUMMARY)
+            result["suvr"] = (
+                mc if mc is not None else self._mean_matching(roi_suvr, CORTICAL_SUMMARY)
+            )
         else:
             result["suvr"] = self._mean_matching(roi_suvr, TAU_METAROI)
         return result if result.get("suvr") is not None else None
@@ -208,7 +234,11 @@ class PUPPetParser:
         if not self.pup_root or not os.path.isdir(self.pup_root):
             return res
         subj = (subject_id or "").split("_")[0].lower()
-        sessions = [d for d in glob.glob(os.path.join(self.pup_root, "*")) if subj in os.path.basename(d).lower()]
+        sessions = [
+            d
+            for d in glob.glob(os.path.join(self.pup_root, "*"))
+            if subj in os.path.basename(d).lower()
+        ]
         for sess in sessions:
             parsed = self.parse_pup_session(sess)
             if not parsed:
@@ -217,7 +247,9 @@ class PUPPetParser:
             if parsed["modality"] == "amyloid" and res.amyloid_suvr is None:
                 res.amyloid_suvr = float(parsed["suvr"])
                 res.amyloid_tracer = parsed["tracer"]
-                res.amyloid_centiloid = self.suvr_to_centiloid(res.amyloid_suvr, res.amyloid_tracer or "PIB")
+                res.amyloid_centiloid = self.suvr_to_centiloid(
+                    res.amyloid_suvr, res.amyloid_tracer or "PIB"
+                )
                 res.amyloid_positive = res.amyloid_centiloid >= self.amyloid_threshold_cl
             elif parsed["modality"] == "tau" and res.tau_suvr is None:
                 res.tau_suvr = float(parsed["suvr"])
@@ -230,11 +262,14 @@ class PUPPetParser:
     def _summary(res: "PUPResult") -> str:
         parts = []
         if res.amyloid_suvr is not None:
-            parts.append(f"amyloid {res.amyloid_tracer} SUVR {res.amyloid_suvr:.2f} "
-                         f"({res.amyloid_centiloid:.0f} CL, {'+' if res.amyloid_positive else '-'})")
+            parts.append(
+                f"amyloid {res.amyloid_tracer} SUVR {res.amyloid_suvr:.2f} "
+                f"({res.amyloid_centiloid:.0f} CL, {'+' if res.amyloid_positive else '-'})"
+            )
         if res.tau_suvr is not None:
-            parts.append(f"tau {res.tau_tracer} meta-ROI SUVR {res.tau_suvr:.2f} "
-                         f"({'+' if res.tau_positive else '-'})")
+            parts.append(
+                f"tau {res.tau_tracer} meta-ROI SUVR {res.tau_suvr:.2f} ({'+' if res.tau_positive else '-'})"
+            )
         return "PET (PUP): " + "; ".join(parts) if parts else "No PET (PUP) data found."
 
 

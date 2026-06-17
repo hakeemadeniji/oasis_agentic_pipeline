@@ -47,10 +47,15 @@ def export(workspace_root: str) -> None:
 
     dummy = torch.randn(1, 1, 224, 224)
     torch.onnx.export(
-        model, dummy, raw_path,
-        export_params=True, opset_version=18, dynamo=False,
+        model,
+        dummy,
+        raw_path,
+        export_params=True,
+        opset_version=18,
+        dynamo=False,
         do_constant_folding=True,
-        input_names=["image_mri"], output_names=["logits"],
+        input_names=["image_mri"],
+        output_names=["logits"],
         dynamic_axes={"image_mri": {0: "batch"}, "logits": {0: "batch"}},
     )
     print(f"[+] FP32 ONNX written: {os.path.basename(raw_path)}")
@@ -58,11 +63,14 @@ def export(workspace_root: str) -> None:
     quantize_dynamic(model_input=raw_path, model_output=int8_path, weight_type=QuantType.QUInt8)
     raw_mb = os.path.getsize(raw_path) / (1024 * 1024)
     int8_mb = os.path.getsize(int8_path) / (1024 * 1024)
-    print(f"[+] INT8 ONNX written: {os.path.basename(int8_path)} "
-          f"({raw_mb:.1f} MB -> {int8_mb:.1f} MB, {(1 - int8_mb / raw_mb) * 100:.1f}% smaller)")
+    print(
+        f"[+] INT8 ONNX written: {os.path.basename(int8_path)} "
+        f"({raw_mb:.1f} MB -> {int8_mb:.1f} MB, {(1 - int8_mb / raw_mb) * 100:.1f}% smaller)"
+    )
 
     # Parity check: torch vs ORT (FP32) argmax agreement on random inputs.
     import onnxruntime as ort
+
     sess = ort.InferenceSession(raw_path, providers=["CPUExecutionProvider"])
     agree = 0
     n = 16

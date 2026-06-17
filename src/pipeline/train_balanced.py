@@ -43,20 +43,24 @@ if _SRC not in sys.path:
 
 from agents.vision.vision_agent import AlzheimerVisionAgent  # noqa: E402
 
-TRAIN_TF = transforms.Compose([
-    transforms.Grayscale(num_output_channels=1),
-    transforms.Resize((224, 224)),
-    transforms.RandomRotation(10),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5], std=[0.5]),
-])
-VAL_TF = transforms.Compose([
-    transforms.Grayscale(num_output_channels=1),
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5], std=[0.5]),
-])
+TRAIN_TF = transforms.Compose(
+    [
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize((224, 224)),
+        transforms.RandomRotation(10),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5], std=[0.5]),
+    ]
+)
+VAL_TF = transforms.Compose(
+    [
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5], std=[0.5]),
+    ]
+)
 
 
 class ListDataset(Dataset):
@@ -82,7 +86,7 @@ def build_splits(data_root: str, per_class: int, val_per_class: int, seed: int):
     for cls, paths in by_class.items():
         idx = rng.permutation(len(paths))
         val_idx = idx[:val_per_class]
-        train_idx = idx[val_per_class:val_per_class + per_class]
+        train_idx = idx[val_per_class : val_per_class + per_class]
         val_items += [(paths[i], cls) for i in val_idx]
         train_items += [(paths[i], cls) for i in train_idx]
     rng.shuffle(train_items)
@@ -113,7 +117,10 @@ def main():
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--lr", type=float, default=2e-4)
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--out", default=os.path.join(_ROOT, "src", "pipeline", "onnx_inference", "best_vision_agent.pth"))
+    ap.add_argument(
+        "--out",
+        default=os.path.join(_ROOT, "src", "pipeline", "onnx_inference", "best_vision_agent.pth"),
+    )
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
@@ -127,10 +134,12 @@ def main():
     print(f"[data] classes={classes}")
     print(f"[data] train={len(train_items)} val={len(val_items)} ({args.per_class}/class train)")
 
-    train_loader = DataLoader(ListDataset(train_items, TRAIN_TF), batch_size=args.batch_size,
-                              shuffle=True, num_workers=0)
-    val_loader = DataLoader(ListDataset(val_items, VAL_TF), batch_size=args.batch_size,
-                            shuffle=False, num_workers=0)
+    train_loader = DataLoader(
+        ListDataset(train_items, TRAIN_TF), batch_size=args.batch_size, shuffle=True, num_workers=0
+    )
+    val_loader = DataLoader(
+        ListDataset(val_items, VAL_TF), batch_size=args.batch_size, shuffle=False, num_workers=0
+    )
 
     model = AlzheimerVisionAgent(num_classes=num_classes).to(device)
     if os.path.exists(args.out):
@@ -145,8 +154,10 @@ def main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     base_bal, base_pc, base_acc = evaluate(model, val_loader, device, num_classes)
-    print(f"[baseline] balanced_acc={base_bal*100:.1f}% overall_acc={base_acc*100:.1f}% "
-          f"per_class={[f'{v*100:.0f}' for v in base_pc]}")
+    print(
+        f"[baseline] balanced_acc={base_bal * 100:.1f}% overall_acc={base_acc * 100:.1f}% "
+        f"per_class={[f'{v * 100:.0f}' for v in base_pc]}"
+    )
 
     best_bal = base_bal
     best_state = {k: v.clone() for k, v in model.state_dict().items()}
@@ -162,17 +173,22 @@ def main():
             optimizer.step()
             running += loss.item()
             if bi % 10 == 0:
-                print(f"  epoch {epoch+1} batch {bi}/{len(train_loader)} loss={loss.item():.3f}",
-                      flush=True)
+                print(
+                    f"  epoch {epoch + 1} batch {bi}/{len(train_loader)} loss={loss.item():.3f}",
+                    flush=True,
+                )
         scheduler.step()
         bal, pc, acc = evaluate(model, val_loader, device, num_classes)
-        print(f"[epoch {epoch+1}] loss={running/len(train_loader):.3f} "
-              f"balanced_acc={bal*100:.1f}% overall_acc={acc*100:.1f}% "
-              f"per_class={[f'{v*100:.0f}' for v in pc]} ({time.perf_counter()-t0:.0f}s)", flush=True)
+        print(
+            f"[epoch {epoch + 1}] loss={running / len(train_loader):.3f} "
+            f"balanced_acc={bal * 100:.1f}% overall_acc={acc * 100:.1f}% "
+            f"per_class={[f'{v * 100:.0f}' for v in pc]} ({time.perf_counter() - t0:.0f}s)",
+            flush=True,
+        )
         if bal > best_bal:
             best_bal = bal
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
-            print(f"  -> new best balanced_acc={bal*100:.1f}%", flush=True)
+            print(f"  -> new best balanced_acc={bal * 100:.1f}%", flush=True)
 
     if best_bal > base_bal:
         backup = args.out.replace(".pth", "_original.pth")
@@ -180,9 +196,13 @@ def main():
             shutil.copy2(args.out, backup)
             print(f"[save] backed up previous weights -> {os.path.basename(backup)}")
         torch.save(best_state, args.out)
-        print(f"[save] wrote improved weights -> {args.out} (balanced_acc {base_bal*100:.1f}% -> {best_bal*100:.1f}%)")
+        print(
+            f"[save] wrote improved weights -> {args.out} (balanced_acc {base_bal * 100:.1f}% -> {best_bal * 100:.1f}%)"
+        )
     else:
-        print(f"[save] no improvement over baseline ({base_bal*100:.1f}%); keeping existing weights")
+        print(
+            f"[save] no improvement over baseline ({base_bal * 100:.1f}%); keeping existing weights"
+        )
 
 
 if __name__ == "__main__":

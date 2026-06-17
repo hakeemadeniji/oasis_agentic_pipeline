@@ -40,22 +40,25 @@ from typing import Any, Dict, List, Optional, Tuple
 # direction = +1  -> higher volume is the abnormal (enlarged) direction
 # ---------------------------------------------------------------------------
 NORMATIVE: Dict[str, Dict[str, Any]] = {
-    "Left-Hippocampus":        {"mean": 0.235, "std": 0.035, "direction": -1, "ad_weight": 1.0},
-    "Right-Hippocampus":       {"mean": 0.240, "std": 0.035, "direction": -1, "ad_weight": 1.0},
-    "Left-Amygdala":           {"mean": 0.105, "std": 0.020, "direction": -1, "ad_weight": 0.6},
-    "Right-Amygdala":          {"mean": 0.108, "std": 0.020, "direction": -1, "ad_weight": 0.6},
-    "Left-Inf-Lat-Vent":       {"mean": 0.045, "std": 0.030, "direction": +1, "ad_weight": 0.8},
-    "Right-Inf-Lat-Vent":      {"mean": 0.045, "std": 0.030, "direction": +1, "ad_weight": 0.8},
-    "Left-Lateral-Ventricle":  {"mean": 1.05,  "std": 0.55,  "direction": +1, "ad_weight": 0.5},
-    "Right-Lateral-Ventricle": {"mean": 1.05,  "std": 0.55,  "direction": +1, "ad_weight": 0.5},
-    "3rd-Ventricle":           {"mean": 0.085, "std": 0.030, "direction": +1, "ad_weight": 0.4},
+    "Left-Hippocampus": {"mean": 0.235, "std": 0.035, "direction": -1, "ad_weight": 1.0},
+    "Right-Hippocampus": {"mean": 0.240, "std": 0.035, "direction": -1, "ad_weight": 1.0},
+    "Left-Amygdala": {"mean": 0.105, "std": 0.020, "direction": -1, "ad_weight": 0.6},
+    "Right-Amygdala": {"mean": 0.108, "std": 0.020, "direction": -1, "ad_weight": 0.6},
+    "Left-Inf-Lat-Vent": {"mean": 0.045, "std": 0.030, "direction": +1, "ad_weight": 0.8},
+    "Right-Inf-Lat-Vent": {"mean": 0.045, "std": 0.030, "direction": +1, "ad_weight": 0.8},
+    "Left-Lateral-Ventricle": {"mean": 1.05, "std": 0.55, "direction": +1, "ad_weight": 0.5},
+    "Right-Lateral-Ventricle": {"mean": 1.05, "std": 0.55, "direction": +1, "ad_weight": 0.5},
+    "3rd-Ventricle": {"mean": 0.085, "std": 0.030, "direction": +1, "ad_weight": 0.4},
 }
 
 # Structures that drive the medial-temporal-atrophy composite.
 MTA_STRUCTURES = (
-    "Left-Hippocampus", "Right-Hippocampus",
-    "Left-Amygdala", "Right-Amygdala",
-    "Left-Inf-Lat-Vent", "Right-Inf-Lat-Vent",
+    "Left-Hippocampus",
+    "Right-Hippocampus",
+    "Left-Amygdala",
+    "Right-Amygdala",
+    "Left-Inf-Lat-Vent",
+    "Right-Inf-Lat-Vent",
 )
 
 
@@ -72,11 +75,11 @@ class RegionMetric:
 @dataclass
 class VolumetryResult:
     subject_id: str
-    source: str                       # "freesurfer" | "estimated" | "unavailable"
+    source: str  # "freesurfer" | "estimated" | "unavailable"
     etiv_mm3: float
     regions: List[RegionMetric] = field(default_factory=list)
-    mta_risk_score: float = 0.0       # 0..~3, higher = more medial-temporal atrophy
-    mta_stage: str = "N/A"            # informal Scheltens-like band
+    mta_risk_score: float = 0.0  # 0..~3, higher = more medial-temporal atrophy
+    mta_stage: str = "N/A"  # informal Scheltens-like band
     flags: List[str] = field(default_factory=list)
     summary: str = "Regional volumetry not available."
 
@@ -110,7 +113,9 @@ class RegionalVolumetryAgent:
         if freesurfer_root and os.path.isdir(freesurfer_root):
             print(f"[+] Regional Volumetry Agent bound to FreeSurfer root: {freesurfer_root}")
         else:
-            print("[*] Regional Volumetry Agent ready (no FreeSurfer root yet; estimation fallback enabled).")
+            print(
+                "[*] Regional Volumetry Agent ready (no FreeSurfer root yet; estimation fallback enabled)."
+            )
 
     # ------------------------------------------------------------------ parse
     @staticmethod
@@ -160,7 +165,9 @@ class RegionalVolumetryAgent:
         if path:
             return self.analyze_stats_file(path, subject_id=subject_id)
         return VolumetryResult(
-            subject_id=subject_id, source="unavailable", etiv_mm3=0.0,
+            subject_id=subject_id,
+            source="unavailable",
+            etiv_mm3=0.0,
             summary=(
                 f"No FreeSurfer aseg.stats found for {subject_id}. Run "
                 "scripts/oasis/download_oasis_freesurfer_tar.sh to enable regional volumetry."
@@ -185,13 +192,17 @@ class RegionalVolumetryAgent:
             flags.append("Global atrophy: whole-brain volume markedly below elderly norm.")
         summary = (
             f"Estimated (no FreeSurfer): nWBV={nwbv:.3f} (global z={global_z:+.1f}); "
-            f"brain≈{brain_vol/1000:.0f} cc within eTIV {etiv/1000:.0f} cc. "
+            f"brain≈{brain_vol / 1000:.0f} cc within eTIV {etiv / 1000:.0f} cc. "
             "Regional sub-structures unavailable without FreeSurfer segmentation."
         )
         return VolumetryResult(
-            subject_id=subject_id, source="estimated", etiv_mm3=etiv,
-            mta_risk_score=max(0.0, -global_z), mta_stage=self._stage(max(0.0, -global_z)),
-            flags=flags, summary=summary,
+            subject_id=subject_id,
+            source="estimated",
+            etiv_mm3=etiv,
+            mta_risk_score=max(0.0, -global_z),
+            mta_stage=self._stage(max(0.0, -global_z)),
+            flags=flags,
+            summary=summary,
         )
 
     # ------------------------------------------------------------------ helpers
@@ -236,9 +247,14 @@ class RegionalVolumetryAgent:
         summary = self._summarize(subject_id, regions, mta_risk, stage, source)
 
         return VolumetryResult(
-            subject_id=subject_id, source=source, etiv_mm3=etiv,
-            regions=regions, mta_risk_score=mta_risk, mta_stage=stage,
-            flags=flags, summary=summary,
+            subject_id=subject_id,
+            source=source,
+            etiv_mm3=etiv,
+            regions=regions,
+            mta_risk_score=mta_risk,
+            mta_stage=stage,
+            flags=flags,
+            summary=summary,
         )
 
     @staticmethod

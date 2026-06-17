@@ -66,9 +66,9 @@ SYSTEM_PROMPT = (
 @dataclass
 class ReasonerResult:
     narrative: str
-    tier: str           # backend: "anthropic" | "ollama" | "template"
-    model: str          # concrete model id / provider string
-    escalated: bool     # True when a flagged/low-confidence case used Claude
+    tier: str  # backend: "anthropic" | "ollama" | "template"
+    model: str  # concrete model id / provider string
+    escalated: bool  # True when a flagged/low-confidence case used Claude
 
 
 class ClinicalReasonerAgent:
@@ -150,9 +150,7 @@ class ClinicalReasonerAgent:
     def _template(self, e: Dict[str, Any]) -> str:
         """Deterministic, dependency-free narrative used when no LLM is reachable."""
         flagged = bool(e.get("ethics_flagged"))
-        head = (
-            "[HUMAN REVIEW REQUIRED] " if flagged else ""
-        )
+        head = "[HUMAN REVIEW REQUIRED] " if flagged else ""
         cls = e.get("authorized_class", e.get("prediction", "Undetermined"))
         conf = float(e.get("confidence", 0.0))
         mmse = e.get("mmse", "N/A")
@@ -192,7 +190,9 @@ if __name__ == "__main__":
         "volumetry_summary": "L/R hippocampus -1.8 SD below normative mean; lateral ventricles +1.4 SD enlarged.",
         "ethics_flagged": False,
         "ethics_message": "VERIFIED: data streams aligned.",
-        "rag_context": ["Very Mild Dementia (CDR 0.5) presents with slight memory complaints and MMSE typically above 25."],
+        "rag_context": [
+            "Very Mild Dementia (CDR 0.5) presents with slight memory complaints and MMSE typically above 25."
+        ],
     }
     result = agent.synthesize(demo)
     print(f"\n--- Clinical Reasoner Output [tier={result.tier}, model={result.model}] ---\n")

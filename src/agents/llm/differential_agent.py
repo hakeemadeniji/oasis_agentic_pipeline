@@ -45,7 +45,8 @@ SYSTEM_PROMPT = (
     "You are a neurology differential-diagnosis assistant in a screening pipeline. "
     "You are given the already-computed outputs of imaging, biomarker, volumetry, "
     "and ATN agents. Produce a ranked differential across these etiologies: "
-    + "; ".join(ETIOLOGIES) + ". "
+    + "; ".join(ETIOLOGIES)
+    + ". "
     "Rules: (1) ground every likelihood in the supplied numbers — do not invent "
     "values; (2) likelihoods are 0-100 and should sum to ~100; (3) give a one-line "
     "rationale per etiology citing the specific evidence; (4) list the confirmatory "
@@ -118,7 +119,8 @@ class DifferentialDiagnosisAgent:
         total = sum(scores.values()) or 1.0
         ranked = sorted(
             ({"etiology": k, "likelihood": round(v / total * 100)} for k, v in scores.items()),
-            key=lambda d: d["likelihood"], reverse=True,
+            key=lambda d: d["likelihood"],
+            reverse=True,
         )
         return ranked
 
@@ -131,23 +133,26 @@ class DifferentialDiagnosisAgent:
         result = self.provider.complete(
             system=SYSTEM_PROMPT,
             prompt=prompt,
-            tier=TIER_DEEP,              # complex reasoning -> Opus when available
+            tier=TIER_DEEP,  # complex reasoning -> Opus when available
             free_capable=False,
             max_tokens=1400,
-            template_fallback="",        # we build our own structured fallback below
+            template_fallback="",  # we build our own structured fallback below
         )
         parsed = self._parse(result.text)
         if parsed is None:
             return DifferentialResult(
-                ranking=fallback["ranking"], recommended_workup=fallback["recommended_workup"],
-                summary=fallback["summary"], provider=result.provider if result.text else "template",
+                ranking=fallback["ranking"],
+                recommended_workup=fallback["recommended_workup"],
+                summary=fallback["summary"],
+                provider=result.provider if result.text else "template",
                 grounded_prior=prior,
             )
         return DifferentialResult(
             ranking=parsed.get("ranking", fallback["ranking"]),
             recommended_workup=parsed.get("recommended_workup", fallback["recommended_workup"]),
             summary=parsed.get("summary", fallback["summary"]),
-            provider=result.provider, grounded_prior=prior,
+            provider=result.provider,
+            grounded_prior=prior,
         )
 
     # ------------------------------------------------------------- helpers
@@ -194,25 +199,41 @@ class DifferentialDiagnosisAgent:
             workup.append("Tau PET (AV1451) or CSF p-tau to establish the T axis")
         workup.append("FDG-PET for hypometabolism pattern (AD vs FTD vs DLB)")
         workup.append("Formal neuropsychological testing and clinical history")
-        rationale = {d["etiology"]: f"prior likelihood {d['likelihood']}% from biomarker/atrophy rules"
-                     for d in prior}
-        ranking = [{"etiology": d["etiology"], "likelihood": d["likelihood"],
-                    "rationale": rationale[d["etiology"]]} for d in prior]
+        rationale = {
+            d["etiology"]: f"prior likelihood {d['likelihood']}% from biomarker/atrophy rules"
+            for d in prior
+        }
+        ranking = [
+            {
+                "etiology": d["etiology"],
+                "likelihood": d["likelihood"],
+                "rationale": rationale[d["etiology"]],
+            }
+            for d in prior
+        ]
         return {
             "ranking": ranking,
             "recommended_workup": workup,
-            "summary": (f"Leading consideration: {top}. Deterministic rule-based ranking "
-                        "(no LLM backend reachable). Confirm with the recommended work-up."),
+            "summary": (
+                f"Leading consideration: {top}. Deterministic rule-based ranking "
+                "(no LLM backend reachable). Confirm with the recommended work-up."
+            ),
         }
 
 
 if __name__ == "__main__":
     agent = DifferentialDiagnosisAgent()
     demo = {
-        "prediction": "Mild Dementia", "confidence": 88.0, "age": 77, "mmse": 21,
-        "atrophy_velocity": 1.1, "hippocampus_z": -2.2,
+        "prediction": "Mild Dementia",
+        "confidence": 88.0,
+        "age": 77,
+        "mmse": 21,
+        "atrophy_velocity": 1.1,
+        "hippocampus_z": -2.2,
         "volumetry_summary": "Moderate medial-temporal atrophy; ventricles enlarged.",
-        "atn_a": "positive", "atn_t": "positive", "atn_n": "positive",
+        "atn_a": "positive",
+        "atn_t": "positive",
+        "atn_n": "positive",
         "atn_category": "Alzheimer's disease (A+T+N+)",
     }
     res = agent.analyze(demo)

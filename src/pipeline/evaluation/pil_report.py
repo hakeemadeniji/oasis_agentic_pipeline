@@ -112,10 +112,16 @@ class ReportBuilder:
     def _footer(self) -> None:
         f = self.font(14)
         self.draw.line([MARGIN, PAGE_H - 60, PAGE_W - MARGIN, PAGE_H - 60], fill=GRID, width=1)
-        self.draw.text((MARGIN, PAGE_H - 50), "OASIS Agentic Pipeline — Effectiveness Analysis",
-                       font=f, fill=MUTED)
+        self.draw.text(
+            (MARGIN, PAGE_H - 50),
+            "OASIS Agentic Pipeline — Effectiveness Analysis",
+            font=f,
+            fill=MUTED,
+        )
         num = f"Page {self._page_no}"
-        self.draw.text((PAGE_W - MARGIN - self._text_w(num, f), PAGE_H - 50), num, font=f, fill=MUTED)
+        self.draw.text(
+            (PAGE_W - MARGIN - self._text_w(num, f), PAGE_H - 50), num, font=f, fill=MUTED
+        )
 
     def ensure(self, h: int) -> None:
         if self.y + h > PAGE_H - 80:
@@ -164,8 +170,13 @@ class ReportBuilder:
         self.ensure(h + 20)
         x = MARGIN
         for label, value, color in items:
-            self.draw.rounded_rectangle([x, self.y, x + w, self.y + h], radius=14,
-                                        fill=(248, 249, 250), outline=GRID, width=1)
+            self.draw.rounded_rectangle(
+                [x, self.y, x + w, self.y + h],
+                radius=14,
+                fill=(248, 249, 250),
+                outline=GRID,
+                width=1,
+            )
             self.draw.rounded_rectangle([x, self.y, x + 8, self.y + h], radius=4, fill=color)
             vfont = self.font(40, True)
             self.draw.text((x + 26, self.y + 30), value, font=vfont, fill=color)
@@ -175,8 +186,12 @@ class ReportBuilder:
             x += w + gap
         self.y += h + 20
 
-    def table(self, headers: Sequence[str], rows: Sequence[Sequence[str]],
-              col_w: Optional[Sequence[int]] = None) -> None:
+    def table(
+        self,
+        headers: Sequence[str],
+        rows: Sequence[Sequence[str]],
+        col_w: Optional[Sequence[int]] = None,
+    ) -> None:
         ncol = len(headers)
         if col_w is None:
             col_w = [CONTENT_W // ncol] * ncol
@@ -201,8 +216,11 @@ class ReportBuilder:
                 self.draw.text((x + 12, self.y + 9), str(c), font=bf, fill=INK)
                 x += w
             self.y += rh
-        self.draw.rectangle([MARGIN, self.y - rh * (len(rows) + 1), MARGIN + sum(col_w), self.y],
-                            outline=GRID, width=1)
+        self.draw.rectangle(
+            [MARGIN, self.y - rh * (len(rows) + 1), MARGIN + sum(col_w), self.y],
+            outline=GRID,
+            width=1,
+        )
         self.y += 10
 
     # ----------------------------------------------------------- charts
@@ -211,9 +229,15 @@ class ReportBuilder:
         x0, y0 = MARGIN, self.y
         return x0, y0, CONTENT_W, h
 
-    def grouped_bar(self, title: str, categories: Sequence[str],
-                    series: Dict[str, Sequence[float]], ymax: float = 1.0,
-                    height: int = 360, fmt: str = "{:.2f}") -> None:
+    def grouped_bar(
+        self,
+        title: str,
+        categories: Sequence[str],
+        series: Dict[str, Sequence[float]],
+        ymax: float = 1.0,
+        height: int = 360,
+        fmt: str = "{:.2f}",
+    ) -> None:
         self.heading(title, level=3)
         x0, y0, w, h = self._chart_box(height)
         pad_l, pad_b, pad_t = 60, 70, 20
@@ -239,15 +263,18 @@ class ReportBuilder:
                 bh = int(plot_h * val / ymax) if ymax else 0
                 bx = gx + si * bar_w
                 color = SERIES[si % len(SERIES)]
-                self.draw.rectangle([bx, ax_y + plot_h - bh, bx + bar_w - 4, ax_y + plot_h], fill=color)
+                self.draw.rectangle(
+                    [bx, ax_y + plot_h - bh, bx + bar_w - 4, ax_y + plot_h], fill=color
+                )
                 lbl = fmt.format(series[name][ci])
                 lf = self.font(13)
                 self.draw.text((bx, ax_y + plot_h - bh - 18), lbl, font=lf, fill=INK)
             # category label
             cf = self.font(14)
             for j, line in enumerate(self._wrap(cat, cf, int(group_w))):
-                self.draw.text((ax_x + ci * group_w + 6, ax_y + plot_h + 8 + j * 16), line,
-                               font=cf, fill=INK)
+                self.draw.text(
+                    (ax_x + ci * group_w + 6, ax_y + plot_h + 8 + j * 16), line, font=cf, fill=INK
+                )
         # axes
         self.draw.line([ax_x, ax_y, ax_x, ax_y + plot_h], fill=INK, width=2)
         self.draw.line([ax_x, ax_y + plot_h, ax_x + plot_w, ax_y + plot_h], fill=INK, width=2)
@@ -261,9 +288,15 @@ class ReportBuilder:
             lx += 40 + int(self._text_w(name, self.font(14)))
         self.y = y0 + h + 16
 
-    def heatmap(self, title: str, matrix: Sequence[Sequence[float]],
-                row_labels: Sequence[str], col_labels: Sequence[str],
-                height: int = 460, annotate_norm: bool = True) -> None:
+    def heatmap(
+        self,
+        title: str,
+        matrix: Sequence[Sequence[float]],
+        row_labels: Sequence[str],
+        col_labels: Sequence[str],
+        height: int = 460,
+        annotate_norm: bool = True,
+    ) -> None:
         self.heading(title, level=3)
         n = len(matrix)
         m = len(matrix[0]) if n else 0
@@ -279,40 +312,64 @@ class ReportBuilder:
                 v = matrix[i][j]
                 t = v / mx
                 # white -> accent blue
-                col = (int(255 - t * (255 - ACCENT[0])),
-                       int(255 - t * (255 - ACCENT[1])),
-                       int(255 - t * (255 - ACCENT[2])))
+                col = (
+                    int(255 - t * (255 - ACCENT[0])),
+                    int(255 - t * (255 - ACCENT[1])),
+                    int(255 - t * (255 - ACCENT[2])),
+                )
                 cx0 = grid_x + j * cell
                 cy0 = grid_y + i * cell
                 self.draw.rectangle([cx0, cy0, cx0 + cell, cy0 + cell], fill=col, outline=GRID)
                 txt_col = (255, 255, 255) if t > 0.55 else INK
                 vf = self.font(16, True)
                 vs = str(int(v))
-                self.draw.text((cx0 + cell / 2 - self._text_w(vs, vf) / 2, cy0 + cell / 2 - 16),
-                               vs, font=vf, fill=txt_col)
+                self.draw.text(
+                    (cx0 + cell / 2 - self._text_w(vs, vf) / 2, cy0 + cell / 2 - 16),
+                    vs,
+                    font=vf,
+                    fill=txt_col,
+                )
                 if annotate_norm:
                     pf = self.font(12)
-                    ps = f"{100*v/row_total:.0f}%"
-                    self.draw.text((cx0 + cell / 2 - self._text_w(ps, pf) / 2, cy0 + cell / 2 + 4),
-                                   ps, font=pf, fill=txt_col)
+                    ps = f"{100 * v / row_total:.0f}%"
+                    self.draw.text(
+                        (cx0 + cell / 2 - self._text_w(ps, pf) / 2, cy0 + cell / 2 + 4),
+                        ps,
+                        font=pf,
+                        fill=txt_col,
+                    )
         # row labels (true)
         rf = self.font(14)
         for i, lab in enumerate(row_labels):
             for k, line in enumerate(self._wrap(lab, rf, pad_l - 12)):
-                self.draw.text((x0, grid_y + i * cell + cell / 2 - 8 + k * 15), line, font=rf, fill=INK)
+                self.draw.text(
+                    (x0, grid_y + i * cell + cell / 2 - 8 + k * 15), line, font=rf, fill=INK
+                )
         # col labels (pred)
         for j, lab in enumerate(col_labels):
             cf = self.font(14)
             for k, line in enumerate(self._wrap(lab, cf, cell + 10)):
-                self.draw.text((grid_x + j * cell + 4, grid_y + n * cell + 8 + k * 15),
-                               line, font=cf, fill=INK)
-        self.draw.text((x0, grid_y + n * cell + 70), "Rows = true class   Columns = predicted class   "
-                       "(cell = count, % = row-normalized recall)", font=self.font(13), fill=MUTED)
+                self.draw.text(
+                    (grid_x + j * cell + 4, grid_y + n * cell + 8 + k * 15), line, font=cf, fill=INK
+                )
+        self.draw.text(
+            (x0, grid_y + n * cell + 70),
+            "Rows = true class   Columns = predicted class   (cell = count, % = row-normalized recall)",
+            font=self.font(13),
+            fill=MUTED,
+        )
         self.y = y0 + h + 16
 
-    def hbar(self, title: str, labels: Sequence[str], values: Sequence[float],
-             colors: Optional[Sequence[tuple]] = None, height: int = 320,
-             unit: str = "", vmax: Optional[float] = None) -> None:
+    def hbar(
+        self,
+        title: str,
+        labels: Sequence[str],
+        values: Sequence[float],
+        colors: Optional[Sequence[tuple]] = None,
+        height: int = 320,
+        unit: str = "",
+        vmax: Optional[float] = None,
+    ) -> None:
         self.heading(title, level=3)
         x0, y0, w, h = self._chart_box(height)
         pad_l = 230
@@ -327,8 +384,12 @@ class ReportBuilder:
             bw = int(bar_area * min(val / vmax, 1.0))
             self.draw.text((x0, cy + bh / 2 - 10), lab, font=self.font(15), fill=INK)
             self.draw.rectangle([x0 + pad_l, cy, x0 + pad_l + bw, cy + bh], fill=color)
-            self.draw.text((x0 + pad_l + bw + 10, cy + bh / 2 - 10),
-                           f"{val:.2f}{unit}", font=self.font(15, True), fill=INK)
+            self.draw.text(
+                (x0 + pad_l + bw + 10, cy + bh / 2 - 10),
+                f"{val:.2f}{unit}",
+                font=self.font(15, True),
+                fill=INK,
+            )
         self.y = y0 + h + 16
 
     # ----------------------------------------------------------- output
@@ -336,9 +397,15 @@ class ReportBuilder:
         d = self.draw
         d.rectangle([0, 0, PAGE_W, 320], fill=ACCENT)
         d.rectangle([0, 320, PAGE_W, 332], fill=ACCENT2)
-        d.text((MARGIN, 120), "OASIS Agentic Pipeline", font=self.font(52, True), fill=(255, 255, 255))
-        d.text((MARGIN, 195), "Effectiveness & Data Analysis Report", font=self.font(30),
-               fill=(230, 240, 250))
+        d.text(
+            (MARGIN, 120), "OASIS Agentic Pipeline", font=self.font(52, True), fill=(255, 255, 255)
+        )
+        d.text(
+            (MARGIN, 195),
+            "Effectiveness & Data Analysis Report",
+            font=self.font(30),
+            fill=(230, 240, 250),
+        )
         self.y = 400
         self.paragraph(self.subtitle, color=MUTED, size=20)
         self.space(20)
@@ -347,9 +414,12 @@ class ReportBuilder:
         self.y = PAGE_H - 230
         self.draw.line([MARGIN, self.y, PAGE_W - MARGIN, self.y], fill=GRID, width=1)
         self.space(16)
-        self.paragraph("Hybrid edge-cloud, Snapdragon-NPU-optimized, zero paid-API multi-agent "
-                       "system for Alzheimer's disease screening on the OASIS datasets.",
-                       color=MUTED, size=17)
+        self.paragraph(
+            "Hybrid edge-cloud, Snapdragon-NPU-optimized, zero paid-API multi-agent "
+            "system for Alzheimer's disease screening on the OASIS datasets.",
+            color=MUTED,
+            size=17,
+        )
 
     def save(self, path: str) -> str:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)

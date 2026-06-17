@@ -44,9 +44,12 @@ class Finding:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "name": self.name, "metric": self.metric, "value": round(self.value, 4),
+            "name": self.name,
+            "metric": self.metric,
+            "value": round(self.value, 4),
             "p_value": None if self.p_value is None else round(self.p_value, 5),
-            "n": self.n, "interpretation": self.interpretation,
+            "n": self.n,
+            "interpretation": self.interpretation,
         }
 
 
@@ -86,8 +89,12 @@ class CureResearchEngine:
 
     def __init__(self, workspace_root: str):
         self.root = workspace_root
-        self.cross_csv = os.path.join(workspace_root, "data", "oasis_raw", "oasis_cross-sectional.csv")
-        self.clinical_csv = os.path.join(workspace_root, "data", "oasis_raw", "oasis_clinical_data.csv")
+        self.cross_csv = os.path.join(
+            workspace_root, "data", "oasis_raw", "oasis_cross-sectional.csv"
+        )
+        self.clinical_csv = os.path.join(
+            workspace_root, "data", "oasis_raw", "oasis_clinical_data.csv"
+        )
         self.long_csv = os.path.join(workspace_root, "data", "oasis_raw", "oasis_longitudinal.csv")
 
     def run(self) -> ResearchReport:
@@ -114,26 +121,42 @@ class CureResearchEngine:
             report.cohort["impaired_fraction"] = round(float(df["_impaired"].mean()), 3)
 
         # Factor -> impairment / cognition associations.
-        factors = [c for c in ["nWBV", "eTIV", "ASF", "Educ", "EDUC", "SES", "Age", "MMSE"] if c in df.columns]
+        factors = [
+            c
+            for c in ["nWBV", "eTIV", "ASF", "Educ", "EDUC", "SES", "Age", "MMSE"]
+            if c in df.columns
+        ]
         # 1) Brain volume (nWBV) vs cognition (MMSE)
         if "nWBV" in df.columns and "MMSE" in df.columns:
             r = _corr(df["nWBV"], df["MMSE"])
             if r:
-                report.findings.append(Finding(
-                    "Whole-brain volume vs cognition", "pearson_r", r[0], r[1], r[2],
-                    f"nWBV correlates with MMSE (r={r[0]:+.2f}); atrophy tracks cognitive loss — "
-                    "supports neurodegeneration (the 'N' axis) as a therapeutic target.",
-                ))
+                report.findings.append(
+                    Finding(
+                        "Whole-brain volume vs cognition",
+                        "pearson_r",
+                        r[0],
+                        r[1],
+                        r[2],
+                        f"nWBV correlates with MMSE (r={r[0]:+.2f}); atrophy tracks cognitive loss — "
+                        "supports neurodegeneration (the 'N' axis) as a therapeutic target.",
+                    )
+                )
         # 2) Education vs cognition (cognitive-reserve clue)
         edu_col = "Educ" if "Educ" in df.columns else ("EDUC" if "EDUC" in df.columns else None)
         if edu_col and "MMSE" in df.columns:
             r = _corr(df[edu_col], df["MMSE"])
             if r:
-                report.findings.append(Finding(
-                    "Education vs cognition (cognitive reserve)", "pearson_r", r[0], r[1], r[2],
-                    f"Higher education associates with higher MMSE (r={r[0]:+.2f}); consistent with "
-                    "cognitive-reserve — a modifiable, non-pharmacological prevention lever.",
-                ))
+                report.findings.append(
+                    Finding(
+                        "Education vs cognition (cognitive reserve)",
+                        "pearson_r",
+                        r[0],
+                        r[1],
+                        r[2],
+                        f"Higher education associates with higher MMSE (r={r[0]:+.2f}); consistent with "
+                        "cognitive-reserve — a modifiable, non-pharmacological prevention lever.",
+                    )
+                )
         # 3) Each factor vs impairment (point-biserial)
         if "_impaired" in df.columns:
             for f in factors:
@@ -142,10 +165,16 @@ class CureResearchEngine:
                 r = _corr(df[f], df["_impaired"])
                 if r and r[1] is not None and r[1] < 0.05:
                     direction = "lower" if r[0] < 0 else "higher"
-                    report.findings.append(Finding(
-                        f"{f} vs dementia status", "point_biserial_r", r[0], r[1], r[2],
-                        f"{direction.title()} {f} associates with dementia (r={r[0]:+.2f}, p={r[1]:.3g}).",
-                    ))
+                    report.findings.append(
+                        Finding(
+                            f"{f} vs dementia status",
+                            "point_biserial_r",
+                            r[0],
+                            r[1],
+                            r[2],
+                            f"{direction.title()} {f} associates with dementia (r={r[0]:+.2f}, p={r[1]:.3g}).",
+                        )
+                    )
 
     # -------------------------------------------------------- longitudinal
     def _experiment_longitudinal(self, report: ResearchReport) -> None:
@@ -171,7 +200,11 @@ class CureResearchEngine:
             nwbv0, nwbv1 = float(sub["nWBV"].iloc[0]), float(sub["nWBV"].iloc[-1])
             atrophy = (nwbv0 - nwbv1) / nwbv0 / yrs * 100
             grp = str(sub["Group"].iloc[0]) if "Group" in sub.columns else "Unknown"
-            edu = float(sub["EDUC"].dropna().iloc[0]) if "EDUC" in sub.columns and sub["EDUC"].notna().any() else np.nan
+            edu = (
+                float(sub["EDUC"].dropna().iloc[0])
+                if "EDUC" in sub.columns and sub["EDUC"].notna().any()
+                else np.nan
+            )
             rows.append({"sid": sid, "atrophy": atrophy, "group": grp, "educ": edu})
         if not rows:
             return
@@ -179,27 +212,42 @@ class CureResearchEngine:
 
         # Atrophy by diagnostic group (validates the decline signal).
         by_group = sdf.groupby("group")["atrophy"].mean().to_dict()
-        report.cohort["mean_atrophy_pct_per_yr_by_group"] = {k: round(float(v), 3) for k, v in by_group.items()}
-        demented = sdf[sdf["group"].str.contains("Demented", case=False, na=False) &
-                       ~sdf["group"].str.contains("Non", case=False, na=False)]["atrophy"]
+        report.cohort["mean_atrophy_pct_per_yr_by_group"] = {
+            k: round(float(v), 3) for k, v in by_group.items()
+        }
+        demented = sdf[
+            sdf["group"].str.contains("Demented", case=False, na=False)
+            & ~sdf["group"].str.contains("Non", case=False, na=False)
+        ]["atrophy"]
         nondem = sdf[sdf["group"].str.contains("Nondemented", case=False, na=False)]["atrophy"]
         if len(demented) >= 3 and len(nondem) >= 3 and _stats is not None:
             t, p = _stats.ttest_ind(demented, nondem, equal_var=False)
-            report.findings.append(Finding(
-                "Atrophy rate: demented vs non-demented", "welch_t", float(t), float(p),
-                int(len(demented) + len(nondem)),
-                f"Demented subjects lose brain volume faster ({demented.mean():.2f} vs "
-                f"{nondem.mean():.2f} %/yr); slowing this rate is a concrete therapeutic endpoint.",
-            ))
+            report.findings.append(
+                Finding(
+                    "Atrophy rate: demented vs non-demented",
+                    "welch_t",
+                    float(t),
+                    float(p),
+                    int(len(demented) + len(nondem)),
+                    f"Demented subjects lose brain volume faster ({demented.mean():.2f} vs "
+                    f"{nondem.mean():.2f} %/yr); slowing this rate is a concrete therapeutic endpoint.",
+                )
+            )
 
         # Cognitive reserve longitudinally: education vs atrophy rate.
         r = _corr(sdf["educ"], sdf["atrophy"])
         if r:
-            report.findings.append(Finding(
-                "Education vs atrophy rate", "pearson_r", r[0], r[1], r[2],
-                f"Education vs whole-brain atrophy rate (r={r[0]:+.2f}); a negative r would support "
-                "education/cognitive activity as a disease-slowing lever worth a prevention trial.",
-            ))
+            report.findings.append(
+                Finding(
+                    "Education vs atrophy rate",
+                    "pearson_r",
+                    r[0],
+                    r[1],
+                    r[2],
+                    f"Education vs whole-brain atrophy rate (r={r[0]:+.2f}); a negative r would support "
+                    "education/cognitive activity as a disease-slowing lever worth a prevention trial.",
+                )
+            )
 
     # ---------------------------------------------------------- candidates
     def _derive_candidates(self, report: ResearchReport) -> None:
@@ -211,7 +259,9 @@ class CureResearchEngine:
         for f in report.findings:
             low = f.interpretation.lower()
             if "amyloid" in low or "atn" in low:
-                targets.append("Amyloid/tau pathology (ATN A/T axes) — anti-amyloid / anti-tau strategies.")
+                targets.append(
+                    "Amyloid/tau pathology (ATN A/T axes) — anti-amyloid / anti-tau strategies."
+                )
             if "cognitive-reserve" in low or "cognitive reserve" in low or "education" in low:
                 protective.append("Cognitive reserve via education / lifelong cognitive activity.")
             if "vascular" in low:
@@ -228,4 +278,5 @@ if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     report = CureResearchEngine(root).run()
     import json
+
     print(json.dumps(report.to_dict(), indent=2))

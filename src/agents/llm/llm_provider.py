@@ -48,7 +48,7 @@ TIER_DEEP = "deep"
 @dataclass
 class LLMResult:
     text: str
-    provider: str          # "anthropic:<model>" | "ollama:<model>" | "template"
+    provider: str  # "anthropic:<model>" | "ollama:<model>" | "template"
     tier: str
     tokens_in: int = 0
     tokens_out: int = 0
@@ -73,6 +73,7 @@ class HybridLLMProvider:
             return None
         try:
             import anthropic  # lazy: optional dependency
+
             self._anthropic_client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
         except Exception as exc:  # pragma: no cover - depends on env
             print(f"[llm_provider] Anthropic unavailable ({exc}); falling back to Ollama/template.")
@@ -93,15 +94,18 @@ class HybridLLMProvider:
                 self._edge_ready = False
             else:
                 try:
-                    r = requests.get(f"{self.settings.ollama_edge_url.rstrip('/')}/api/tags", timeout=3)
+                    r = requests.get(
+                        f"{self.settings.ollama_edge_url.rstrip('/')}/api/tags", timeout=3
+                    )
                     self._edge_ready = r.status_code == 200
                 except requests.RequestException:
                     self._edge_ready = False
         return self._edge_ready
 
     # ------------------------------------------------------------- calls
-    def _call_anthropic(self, model: str, system: str, prompt: str, tier: str,
-                        max_tokens: int) -> Optional[LLMResult]:
+    def _call_anthropic(
+        self, model: str, system: str, prompt: str, tier: str, max_tokens: int
+    ) -> Optional[LLMResult]:
         client = self._get_anthropic()
         if client is None:
             return None
@@ -121,10 +125,14 @@ class HybridLLMProvider:
                     msg = stream.get_final_message()
             else:
                 msg = client.messages.create(**kwargs)
-            text = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text").strip()
+            text = "".join(
+                b.text for b in msg.content if getattr(b, "type", None) == "text"
+            ).strip()
             usage = getattr(msg, "usage", None)
             return LLMResult(
-                text=text, provider=f"anthropic:{model}", tier=tier,
+                text=text,
+                provider=f"anthropic:{model}",
+                tier=tier,
                 tokens_in=getattr(usage, "input_tokens", 0) or 0,
                 tokens_out=getattr(usage, "output_tokens", 0) or 0,
             )
@@ -148,7 +156,9 @@ class HybridLLMProvider:
             r.raise_for_status()
             text = (r.json().get("response") or "").strip()
             if text:
-                return LLMResult(text=text, provider=f"ollama:{self.settings.ollama_edge_model}", tier=tier)
+                return LLMResult(
+                    text=text, provider=f"ollama:{self.settings.ollama_edge_model}", tier=tier
+                )
         except (requests.RequestException, json.JSONDecodeError, ValueError) as exc:
             print(f"[llm_provider] Ollama call failed: {exc}")
         return None
@@ -194,7 +204,9 @@ class HybridLLMProvider:
 
         return LLMResult(
             text=template_fallback or "[no language model available]",
-            provider="template", tier=tier, error="all_backends_unavailable",
+            provider="template",
+            tier=tier,
+            error="all_backends_unavailable",
         )
 
     def status(self) -> Dict[str, Any]:
@@ -229,7 +241,8 @@ if __name__ == "__main__":
     r = p.complete(
         system="You are a concise assistant.",
         prompt="Say 'ready' in one word.",
-        tier=TIER_FREE, free_capable=True,
+        tier=TIER_FREE,
+        free_capable=True,
         template_fallback="ready (template fallback — no LLM backend reachable)",
     )
     print(f"\n[{r.provider}] {r.text}")

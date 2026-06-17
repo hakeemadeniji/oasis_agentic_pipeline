@@ -36,7 +36,12 @@ if _SRC not in sys.path:
     sys.path.append(_SRC)
 
 from pipeline.evaluation.pil_report import (  # noqa: E402
-    ReportBuilder, GOOD, WARN, BAD, ACCENT, ACCENT2,
+    ReportBuilder,
+    GOOD,
+    WARN,
+    BAD,
+    ACCENT,
+    ACCENT2,
 )
 
 CLASS_NAMES = ["Mild Dementia", "Moderate Dementia", "Non Demented", "Very mild Dementia"]
@@ -50,8 +55,11 @@ def evaluate_vision(root: str, max_per_class: int) -> Dict:
     from torchvision import datasets, transforms
     from PIL import Image
     from sklearn.metrics import (
-        confusion_matrix, precision_recall_fscore_support,
-        accuracy_score, balanced_accuracy_score, cohen_kappa_score,
+        confusion_matrix,
+        precision_recall_fscore_support,
+        accuracy_score,
+        balanced_accuracy_score,
+        cohen_kappa_score,
     )
     from agents.vision.vision_agent import AlzheimerVisionAgent
 
@@ -59,12 +67,14 @@ def evaluate_vision(root: str, max_per_class: int) -> Dict:
     weights = os.path.join(root, "src", "pipeline", "onnx_inference", "best_vision_agent.pth")
 
     # Match the training-time val/test transform exactly (incl. normalization).
-    tf = transforms.Compose([
-        transforms.Grayscale(num_output_channels=1),
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5]),
-    ])
+    tf = transforms.Compose(
+        [
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
+        ]
+    )
 
     dataset = datasets.ImageFolder(root=data_root)
     classes = dataset.classes  # alphabetical -> matches training index space
@@ -131,13 +141,22 @@ def evaluate_vision(root: str, max_per_class: int) -> Dict:
     spec = tn / (tn + fp) if (tn + fp) else 0.0
 
     return {
-        "trained": trained, "classes": classes, "n": len(y_true), "elapsed_s": elapsed,
+        "trained": trained,
+        "classes": classes,
+        "n": len(y_true),
+        "elapsed_s": elapsed,
         "throughput": len(y_true) / elapsed if elapsed else 0.0,
-        "cm": cm.tolist(), "precision": prec.tolist(), "recall": rec.tolist(),
-        "f1": f1.tolist(), "support": support.tolist(),
-        "accuracy": acc, "balanced_accuracy": bal_acc, "kappa": kappa,
+        "cm": cm.tolist(),
+        "precision": prec.tolist(),
+        "recall": rec.tolist(),
+        "f1": f1.tolist(),
+        "support": support.tolist(),
+        "accuracy": acc,
+        "balanced_accuracy": bal_acc,
+        "kappa": kappa,
         "mean_confidence": float(np.mean(confidences)) if confidences else 0.0,
-        "sensitivity": sens, "specificity": spec,
+        "sensitivity": sens,
+        "specificity": spec,
     }
 
 
@@ -178,7 +197,9 @@ def analyze_cohort(root: str) -> Dict:
             except Exception:
                 continue
             if metrics.get("visits_tracked", 0) > 1:
-                group_vel.setdefault(grp, []).append(float(metrics.get("atrophy_velocity_pct", 0.0)))
+                group_vel.setdefault(grp, []).append(
+                    float(metrics.get("atrophy_velocity_pct", 0.0))
+                )
         out["atrophy_by_group"] = {
             g: {"mean": float(np.mean(v)), "n": len(v)} for g, v in group_vel.items() if v
         }
@@ -209,8 +230,14 @@ def evaluate_guardrail(root: str) -> Dict:
         flagged, msg = ethicist.audit_diagnostic_proposal(cls, conf, mmse, vel)
         ok = flagged == expected
         correct += int(ok)
-        rows.append((name, "FLAG" if flagged else "pass", "FLAG" if expected else "pass",
-                     "ok" if ok else "MISS"))
+        rows.append(
+            (
+                name,
+                "FLAG" if flagged else "pass",
+                "FLAG" if expected else "pass",
+                "ok" if ok else "MISS",
+            )
+        )
     return {"rows": rows, "accuracy": correct / len(battery), "n": len(battery)}
 
 
@@ -229,20 +256,27 @@ def evaluate_volumetry(root: str) -> Dict:
 2 43 1 {vent} Right-Lateral-Ventricle
 3 17 1 {hippo} Left-Hippocampus
 4 53 1 {hippo} Right-Hippocampus
-5 18 1 {hippo*0.45:.0f} Left-Amygdala
-6 54 1 {hippo*0.45:.0f} Right-Amygdala
+5 18 1 {hippo * 0.45:.0f} Left-Amygdala
+6 54 1 {hippo * 0.45:.0f} Right-Amygdala
 """
+
     agent = RegionalVolumetryAgent()
     results = {}
-    for label, hippo, vent in [("Healthy reference", 3550, 15000), ("Atrophic (AD-like)", 2350, 33000)]:
+    for label, hippo, vent in [
+        ("Healthy reference", 3550, 15000),
+        ("Atrophic (AD-like)", 2350, 33000),
+    ]:
         with tempfile.NamedTemporaryFile("w", suffix="_aseg.stats", delete=False) as fh:
             fh.write(aseg(hippo, vent))
             tmp = fh.name
         r = agent.analyze_stats_file(tmp, subject_id=label)
         results[label] = {
-            "mta_risk": r.mta_risk_score, "stage": r.mta_stage,
+            "mta_risk": r.mta_risk_score,
+            "stage": r.mta_stage,
             "lh_z": next((m.z_score for m in r.regions if m.structure == "Left-Hippocampus"), 0.0),
-            "vent_z": next((m.z_score for m in r.regions if m.structure == "Left-Lateral-Ventricle"), 0.0),
+            "vent_z": next(
+                (m.z_score for m in r.regions if m.structure == "Left-Lateral-Ventricle"), 0.0
+            ),
         }
         os.remove(tmp)
     return results
@@ -260,15 +294,20 @@ def benchmark_inference(root: str) -> Dict:
 
     def mb(p):
         return os.path.getsize(p) / (1024 * 1024) if os.path.exists(p) else 0.0
+
     raw_sz = mb(raw) + mb(raw_data)
     int8_sz = mb(int8)
-    out["sizes"] = {"raw_mb": raw_sz, "int8_mb": int8_sz,
-                    "reduction_pct": (1 - int8_sz / raw_sz) * 100 if raw_sz else 0.0}
+    out["sizes"] = {
+        "raw_mb": raw_sz,
+        "int8_mb": int8_sz,
+        "reduction_pct": (1 - int8_sz / raw_sz) * 100 if raw_sz else 0.0,
+    }
 
     # torch baseline latency
     try:
         import torch
         from agents.vision.fusion_agent import AlzheimerMultimodalFusionNet
+
         m = AlzheimerMultimodalFusionNet().eval()
         img = torch.randn(1, 1, 224, 224)
         tab = torch.randn(1, 8)
@@ -287,13 +326,20 @@ def benchmark_inference(root: str) -> Dict:
     if model_path:
         try:
             import onnxruntime as ort
+
             available = ort.get_available_providers()
-            wanted = ["QNNExecutionProvider", "DmlExecutionProvider",
-                      "CUDAExecutionProvider", "CPUExecutionProvider"]
-            label = {"QNNExecutionProvider": "Snapdragon NPU (QNN)",
-                     "DmlExecutionProvider": "ARM64 GPU (DirectML)",
-                     "CUDAExecutionProvider": "GPU (CUDA)",
-                     "CPUExecutionProvider": "CPU"}
+            wanted = [
+                "QNNExecutionProvider",
+                "DmlExecutionProvider",
+                "CUDAExecutionProvider",
+                "CPUExecutionProvider",
+            ]
+            label = {
+                "QNNExecutionProvider": "Snapdragon NPU (QNN)",
+                "DmlExecutionProvider": "ARM64 GPU (DirectML)",
+                "CUDAExecutionProvider": "GPU (CUDA)",
+                "CPUExecutionProvider": "CPU",
+            }
             for prov in wanted:
                 if prov not in available:
                     continue
@@ -309,11 +355,13 @@ def benchmark_inference(root: str) -> Dict:
                     for _ in range(20):
                         sess.run(None, feeds)
                     ms = (time.perf_counter() - t0) / 20 * 1000
-                    out["providers"].append({"provider": label.get(prov, prov), "ms": ms,
-                                             "active": True})
+                    out["providers"].append(
+                        {"provider": label.get(prov, prov), "ms": ms, "active": True}
+                    )
                 except Exception as e:
-                    out["providers"].append({"provider": label.get(prov, prov),
-                                             "ms": None, "error": str(e)[:60]})
+                    out["providers"].append(
+                        {"provider": label.get(prov, prov), "ms": None, "error": str(e)[:60]}
+                    )
         except Exception as e:
             out["onnx_error"] = str(e)
     return out
@@ -322,28 +370,39 @@ def benchmark_inference(root: str) -> Dict:
 # ===========================================================================
 # Report assembly
 # ===========================================================================
-def build_report(root: str, vision: Dict, cohort: Dict, guardrail: Dict,
-                 volumetry: Dict, bench: Dict, out_path: str) -> str:
+def build_report(
+    root: str,
+    vision: Dict,
+    cohort: Dict,
+    guardrail: Dict,
+    volumetry: Dict,
+    bench: Dict,
+    out_path: str,
+) -> str:
     rb = ReportBuilder(
         title="OASIS Agentic Pipeline — Effectiveness Analysis",
         subtitle=f"Automated evaluation report generated {date.today().isoformat()}.",
     )
-    rb.cover([
-        f"MRI scans evaluated: {vision.get('n', 0)} (stratified across {len(vision.get('classes', []))} classes)",
-        f"Clinical cohort: {cohort.get('clinical_n', 0)} subjects | Longitudinal records: {cohort.get('long_n', 0)}",
-        "Acceleration: ONNX Runtime QNN (Snapdragon NPU) → DirectML → CPU fallback",
-        "Language reasoning: local Ollama (no paid API tokens)",
-    ])
+    rb.cover(
+        [
+            f"MRI scans evaluated: {vision.get('n', 0)} (stratified across {len(vision.get('classes', []))} classes)",
+            f"Clinical cohort: {cohort.get('clinical_n', 0)} subjects | Longitudinal records: {cohort.get('long_n', 0)}",
+            "Acceleration: ONNX Runtime QNN (Snapdragon NPU) → DirectML → CPU fallback",
+            "Language reasoning: local Ollama (no paid API tokens)",
+        ]
+    )
 
     # --- Executive summary ---
     rb.new_page()
     rb.heading("1. Executive Summary", 1)
-    rb.kpi_row([
-        ("Overall accuracy", f"{vision.get('accuracy', 0)*100:.1f}%", ACCENT),
-        ("Balanced acc.", f"{vision.get('balanced_accuracy', 0)*100:.1f}%", ACCENT2),
-        ("Screening sensitivity", f"{vision.get('sensitivity', 0)*100:.1f}%", GOOD),
-        ("Guardrail acc.", f"{guardrail.get('accuracy', 0)*100:.1f}%", WARN),
-    ])
+    rb.kpi_row(
+        [
+            ("Overall accuracy", f"{vision.get('accuracy', 0) * 100:.1f}%", ACCENT),
+            ("Balanced acc.", f"{vision.get('balanced_accuracy', 0) * 100:.1f}%", ACCENT2),
+            ("Screening sensitivity", f"{vision.get('sensitivity', 0) * 100:.1f}%", GOOD),
+            ("Guardrail acc.", f"{guardrail.get('accuracy', 0) * 100:.1f}%", WARN),
+        ]
+    )
     rb.paragraph(
         "This report quantifies the effectiveness of the OASIS Agentic Pipeline, a hybrid "
         "edge-cloud multi-agent system for Alzheimer's disease screening. The vision agent "
@@ -353,109 +412,163 @@ def build_report(root: str, vision: Dict, cohort: Dict, guardrail: Dict,
         "reasoner produces the final grounded narrative — entirely on free, on-device models."
     )
     rb.bullet(f"Cohen's kappa (chance-corrected agreement): {vision.get('kappa', 0):.3f}.")
-    rb.bullet(f"Mean model confidence on evaluated slices: {vision.get('mean_confidence', 0)*100:.1f}%.")
-    rb.bullet(f"Ethics guardrail correctly adjudicated {int(guardrail.get('accuracy',0)*guardrail.get('n',0))}"
-              f"/{guardrail.get('n',0)} adversarial safety cases.")
+    rb.bullet(
+        f"Mean model confidence on evaluated slices: {vision.get('mean_confidence', 0) * 100:.1f}%."
+    )
+    rb.bullet(
+        f"Ethics guardrail correctly adjudicated {int(guardrail.get('accuracy', 0) * guardrail.get('n', 0))}"
+        f"/{guardrail.get('n', 0)} adversarial safety cases."
+    )
     if not vision.get("trained", True):
-        rb.paragraph("NOTE: trained weights were not found; vision metrics reflect an UNTRAINED "
-                     "baseline and should be regenerated after training.", color=BAD)
+        rb.paragraph(
+            "NOTE: trained weights were not found; vision metrics reflect an UNTRAINED "
+            "baseline and should be regenerated after training.",
+            color=BAD,
+        )
 
     # --- Vision metrics ---
     rb.new_page()
     rb.heading("2. Vision Agent Classification Performance", 1)
-    rb.paragraph(f"Evaluated on {vision.get('n',0)} held-out MRI slices using the training-time "
-                 "validation transform (grayscale, 224×224, normalized). Class indices follow the "
-                 "alphabetical ImageFolder ordering used during training.")
+    rb.paragraph(
+        f"Evaluated on {vision.get('n', 0)} held-out MRI slices using the training-time "
+        "validation transform (grayscale, 224×224, normalized). Class indices follow the "
+        "alphabetical ImageFolder ordering used during training."
+    )
     classes = vision.get("classes", CLASS_NAMES)
     rb.grouped_bar(
         "Per-class precision / recall / F1",
         categories=classes,
         series={
-            "Precision": vision.get("precision", [0]*len(classes)),
-            "Recall": vision.get("recall", [0]*len(classes)),
-            "F1": vision.get("f1", [0]*len(classes)),
+            "Precision": vision.get("precision", [0] * len(classes)),
+            "Recall": vision.get("recall", [0] * len(classes)),
+            "F1": vision.get("f1", [0] * len(classes)),
         },
         ymax=1.0,
     )
     rows = []
     for i, c in enumerate(classes):
-        rows.append((c, f"{vision['precision'][i]:.2f}", f"{vision['recall'][i]:.2f}",
-                     f"{vision['f1'][i]:.2f}", str(int(vision['support'][i]))))
-    rb.table(["Class", "Precision", "Recall", "F1", "Support"], rows,
-             col_w=[360, 160, 160, 160, 180])
+        rows.append(
+            (
+                c,
+                f"{vision['precision'][i]:.2f}",
+                f"{vision['recall'][i]:.2f}",
+                f"{vision['f1'][i]:.2f}",
+                str(int(vision["support"][i])),
+            )
+        )
+    rb.table(
+        ["Class", "Precision", "Recall", "F1", "Support"], rows, col_w=[360, 160, 160, 160, 180]
+    )
 
     rb.new_page()
     rb.heading("2.1 Confusion Matrix", 2)
     rb.heatmap("Confusion matrix (true vs predicted)", vision.get("cm"), classes, classes)
     rb.heading("2.2 Clinical screening view", 2)
-    rb.paragraph("Collapsing the four classes into a binary screening decision (any dementia vs "
-                 "non-demented) yields the operating point most relevant to triage:")
-    rb.bullet(f"Sensitivity (impaired correctly flagged): {vision.get('sensitivity',0)*100:.1f}%")
-    rb.bullet(f"Specificity (healthy correctly cleared): {vision.get('specificity',0)*100:.1f}%")
+    rb.paragraph(
+        "Collapsing the four classes into a binary screening decision (any dementia vs "
+        "non-demented) yields the operating point most relevant to triage:"
+    )
+    rb.bullet(
+        f"Sensitivity (impaired correctly flagged): {vision.get('sensitivity', 0) * 100:.1f}%"
+    )
+    rb.bullet(f"Specificity (healthy correctly cleared): {vision.get('specificity', 0) * 100:.1f}%")
 
     # --- Cohort analysis ---
     rb.new_page()
     rb.heading("3. Cohort & Longitudinal Data Analysis", 1)
     if cohort.get("clinical_n"):
-        rb.paragraph(f"Cross-sectional cohort: {cohort['clinical_n']} subjects. "
-                     f"Age {cohort['age_mean']:.1f}±{cohort['age_std']:.1f} yr; "
-                     f"MMSE {cohort['mmse_mean']:.1f}±{cohort['mmse_std']:.1f}; "
-                     f"mean nWBV {cohort['nwbv_mean']:.3f}.")
+        rb.paragraph(
+            f"Cross-sectional cohort: {cohort['clinical_n']} subjects. "
+            f"Age {cohort['age_mean']:.1f}±{cohort['age_std']:.1f} yr; "
+            f"MMSE {cohort['mmse_mean']:.1f}±{cohort['mmse_std']:.1f}; "
+            f"mean nWBV {cohort['nwbv_mean']:.3f}."
+        )
         if "sex" in cohort:
-            rb.bullet("Sex distribution: " + ", ".join(f"{k}={v}" for k, v in cohort["sex"].items()))
+            rb.bullet(
+                "Sex distribution: " + ", ".join(f"{k}={v}" for k, v in cohort["sex"].items())
+            )
     abg = cohort.get("atrophy_by_group", {})
     if abg:
-        rb.paragraph("The temporal analyst computes whole-brain atrophy velocity (%/yr) from "
-                     "longitudinal nWBV. Group separation validates the longitudinal agent:")
+        rb.paragraph(
+            "The temporal analyst computes whole-brain atrophy velocity (%/yr) from "
+            "longitudinal nWBV. Group separation validates the longitudinal agent:"
+        )
         labels = list(abg.keys())
         vals = [abg[g]["mean"] for g in labels]
         cols = []
         for g in labels:
             gl = g.lower()
-            cols.append(BAD if "demente" in gl and "non" not in gl else
-                        (WARN if "convert" in gl else GOOD))
-        rb.hbar("Mean atrophy velocity by diagnostic group (%/yr)",
-                [f"{g} (n={abg[g]['n']})" for g in labels], vals, colors=cols, unit="%")
+            cols.append(
+                BAD if "demente" in gl and "non" not in gl else (WARN if "convert" in gl else GOOD)
+            )
+        rb.hbar(
+            "Mean atrophy velocity by diagnostic group (%/yr)",
+            [f"{g} (n={abg[g]['n']})" for g in labels],
+            vals,
+            colors=cols,
+            unit="%",
+        )
 
     # --- Guardrail ---
     rb.new_page()
     rb.heading("4. Ethics Guardrail Effectiveness", 1)
-    rb.paragraph("The ethicist agent is stress-tested against a labelled battery of safe and "
-                 "unsafe diagnostic proposals. It must flag unsafe/contradictory cases and pass "
-                 "consistent ones.")
-    rb.kpi_row([("Battery accuracy", f"{guardrail['accuracy']*100:.0f}%", GOOD),
-                ("Cases tested", f"{guardrail['n']}", ACCENT)])
-    rb.table(["Scenario", "Guardrail", "Expected", "Result"],
-             guardrail["rows"], col_w=[560, 160, 160, 140])
+    rb.paragraph(
+        "The ethicist agent is stress-tested against a labelled battery of safe and "
+        "unsafe diagnostic proposals. It must flag unsafe/contradictory cases and pass "
+        "consistent ones."
+    )
+    rb.kpi_row(
+        [
+            ("Battery accuracy", f"{guardrail['accuracy'] * 100:.0f}%", GOOD),
+            ("Cases tested", f"{guardrail['n']}", ACCENT),
+        ]
+    )
+    rb.table(
+        ["Scenario", "Guardrail", "Expected", "Result"],
+        guardrail["rows"],
+        col_w=[560, 160, 160, 140],
+    )
 
     # --- Volumetry ---
     rb.new_page()
     rb.heading("5. Regional Volumetry (FreeSurfer aseg)", 1)
-    rb.paragraph("The regional-volumetry agent normalizes FreeSurfer subcortical volumes by eTIV "
-                 "and z-scores them against an elderly normative reference. Demonstration on a "
-                 "healthy vs AD-like segmentation shows clear separation in the medial-temporal "
-                 "risk score:")
+    rb.paragraph(
+        "The regional-volumetry agent normalizes FreeSurfer subcortical volumes by eTIV "
+        "and z-scores them against an elderly normative reference. Demonstration on a "
+        "healthy vs AD-like segmentation shows clear separation in the medial-temporal "
+        "risk score:"
+    )
     vrows = []
     for label, r in volumetry.items():
-        vrows.append((label, f"{r['lh_z']:+.2f}", f"{r['vent_z']:+.2f}",
-                      f"{r['mta_risk']:.2f}", r["stage"]))
-    rb.table(["Subject", "Hippocampus z", "Ventricle z", "MTA risk", "Stage"],
-             vrows, col_w=[300, 190, 190, 150, 190])
+        vrows.append(
+            (label, f"{r['lh_z']:+.2f}", f"{r['vent_z']:+.2f}", f"{r['mta_risk']:.2f}", r["stage"])
+        )
+    rb.table(
+        ["Subject", "Hippocampus z", "Ventricle z", "MTA risk", "Stage"],
+        vrows,
+        col_w=[300, 190, 190, 150, 190],
+    )
     labels = list(volumetry.keys())
-    rb.hbar("Medial-temporal-atrophy risk score",
-            labels, [volumetry[lab]["mta_risk"] for lab in labels],
-            colors=[GOOD, BAD][:len(labels)], vmax=2.5)
+    rb.hbar(
+        "Medial-temporal-atrophy risk score",
+        labels,
+        [volumetry[lab]["mta_risk"] for lab in labels],
+        colors=[GOOD, BAD][: len(labels)],
+        vmax=2.5,
+    )
 
     # --- Edge benchmark ---
     rb.new_page()
     rb.heading("6. Edge Acceleration Benchmark (Snapdragon NPU)", 1)
     sizes = bench.get("sizes", {})
     if sizes.get("raw_mb"):
-        rb.kpi_row([
-            ("FP32 model", f"{sizes['raw_mb']:.1f} MB", ACCENT),
-            ("INT8 model", f"{sizes['int8_mb']:.1f} MB", ACCENT2),
-            ("Size reduction", f"{sizes['reduction_pct']:.0f}%", GOOD),
-        ])
+        rb.kpi_row(
+            [
+                ("FP32 model", f"{sizes['raw_mb']:.1f} MB", ACCENT),
+                ("INT8 model", f"{sizes['int8_mb']:.1f} MB", ACCENT2),
+                ("Size reduction", f"{sizes['reduction_pct']:.0f}%", GOOD),
+            ]
+        )
     provs = bench.get("providers", [])
     measured = [p for p in provs if p.get("ms")]
     if measured:
@@ -468,30 +581,47 @@ def build_report(root: str, vision: Dict, cohort: Dict, guardrail: Dict,
         )
     rows = []
     for p in provs:
-        rows.append((p["provider"], f"{p['ms']:.1f} ms" if p.get("ms") else "n/a",
-                     "available" if p.get("ms") else p.get("error", "unavailable")))
+        rows.append(
+            (
+                p["provider"],
+                f"{p['ms']:.1f} ms" if p.get("ms") else "n/a",
+                "available" if p.get("ms") else p.get("error", "unavailable"),
+            )
+        )
     if bench.get("torch_ms"):
         rows.append(("PyTorch FP32 (reference)", f"{bench['torch_ms']:.1f} ms", "baseline"))
     rb.table(["Execution provider", "Latency", "Status"], rows, col_w=[460, 240, 360])
-    rb.paragraph("The pipeline auto-selects the fastest available provider via the "
-                 "QNN→DirectML→CPU fallback chain. On Snapdragon X hardware the QNN row maps to "
-                 "the Hexagon NPU; on other machines it gracefully degrades to DirectML or CPU.",
-                 color=ACCENT)
+    rb.paragraph(
+        "The pipeline auto-selects the fastest available provider via the "
+        "QNN→DirectML→CPU fallback chain. On Snapdragon X hardware the QNN row maps to "
+        "the Hexagon NPU; on other machines it gracefully degrades to DirectML or CPU.",
+        color=ACCENT,
+    )
 
     # --- Methodology ---
     rb.new_page()
     rb.heading("7. Methodology & Limitations", 1)
-    rb.bullet("Vision metrics: stratified, class-balanced HELD-OUT sample (seed=42, "
-              "disjoint from the balanced-trainer's per-class training window when "
-              "max-per-class <= 80), training-consistent normalization, evaluated on CPU.")
-    rb.bullet("Normative volumetry reference values are screening priors consolidated from "
-              "FreeSurfer/ADNI-style literature, not site-specific ground truth.")
-    rb.bullet("Latency benchmarks are single-stream wall-clock means over 20 runs after warmup; "
-              "absolute numbers vary with hardware and ONNX Runtime build.")
-    rb.bullet("The bundled OASIS-1 slices are 2D; full regional volumetry requires the OASIS-3/4 "
-              "FreeSurfer derivatives fetched by scripts/oasis/.")
-    rb.bullet("This system is screening decision-support and is not a substitute for a "
-              "neurologist's diagnosis; all flagged cases route to human review.")
+    rb.bullet(
+        "Vision metrics: stratified, class-balanced HELD-OUT sample (seed=42, "
+        "disjoint from the balanced-trainer's per-class training window when "
+        "max-per-class <= 80), training-consistent normalization, evaluated on CPU."
+    )
+    rb.bullet(
+        "Normative volumetry reference values are screening priors consolidated from "
+        "FreeSurfer/ADNI-style literature, not site-specific ground truth."
+    )
+    rb.bullet(
+        "Latency benchmarks are single-stream wall-clock means over 20 runs after warmup; "
+        "absolute numbers vary with hardware and ONNX Runtime build."
+    )
+    rb.bullet(
+        "The bundled OASIS-1 slices are 2D; full regional volumetry requires the OASIS-3/4 "
+        "FreeSurfer derivatives fetched by scripts/oasis/."
+    )
+    rb.bullet(
+        "This system is screening decision-support and is not a substitute for a "
+        "neurologist's diagnosis; all flagged cases route to human review."
+    )
 
     return rb.save(out_path)
 
@@ -499,13 +629,18 @@ def build_report(root: str, vision: Dict, cohort: Dict, guardrail: Dict,
 def main():
     parser = argparse.ArgumentParser(description="Generate the OASIS effectiveness PDF report.")
     parser.add_argument("--max-per-class", type=int, default=60)
-    parser.add_argument("--out", type=str,
-                        default=os.path.join(_ROOT, "docs", "OASIS_Pipeline_Effectiveness_Analysis.pdf"))
+    parser.add_argument(
+        "--out",
+        type=str,
+        default=os.path.join(_ROOT, "docs", "OASIS_Pipeline_Effectiveness_Analysis.pdf"),
+    )
     args = parser.parse_args()
 
     print("[1/5] Evaluating vision agent ...")
     vision = evaluate_vision(_ROOT, args.max_per_class)
-    print(f"      accuracy={vision['accuracy']*100:.1f}%  balanced={vision['balanced_accuracy']*100:.1f}%")
+    print(
+        f"      accuracy={vision['accuracy'] * 100:.1f}%  balanced={vision['balanced_accuracy'] * 100:.1f}%"
+    )
     print("[2/5] Analyzing cohort + longitudinal data ...")
     cohort = analyze_cohort(_ROOT)
     print("[3/5] Stress-testing ethics guardrail ...")

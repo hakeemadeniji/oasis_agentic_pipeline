@@ -30,27 +30,27 @@ from typing import Dict, Optional
 # Centiloid anchors normal=0, typical AD=100. Coefficients are approximate,
 # pipeline-dependent priors (PIB per Klunk 2015; florbetapir per Navitsky 2018).
 CENTILOID_COEFFS: Dict[str, Dict[str, float]] = {
-    "PIB":   {"slope": 93.7, "intercept": -94.6},
-    "AV45":  {"slope": 196.9, "intercept": -196.0},   # florbetapir
-    "FBP":   {"slope": 196.9, "intercept": -196.0},
-    "AV1451": {"slope": 0.0, "intercept": 0.0},        # tau tracer, not amyloid
+    "PIB": {"slope": 93.7, "intercept": -94.6},
+    "AV45": {"slope": 196.9, "intercept": -196.0},  # florbetapir
+    "FBP": {"slope": 196.9, "intercept": -196.0},
+    "AV1451": {"slope": 0.0, "intercept": 0.0},  # tau tracer, not amyloid
 }
 
 # Default positivity thresholds (screening priors).
-AMYLOID_POSITIVE_CENTILOID = 20.0   # ~A+ at >= 20 CL
-TAU_POSITIVE_SUVR = 1.27            # entorhinal/temporal meta-ROI AV1451
-N_POSITIVE_HIPPO_Z = -1.5           # hippocampal volume z
-N_POSITIVE_MTA = 1.0                # medial-temporal-atrophy composite
+AMYLOID_POSITIVE_CENTILOID = 20.0  # ~A+ at >= 20 CL
+TAU_POSITIVE_SUVR = 1.27  # entorhinal/temporal meta-ROI AV1451
+N_POSITIVE_HIPPO_Z = -1.5  # hippocampal volume z
+N_POSITIVE_MTA = 1.0  # medial-temporal-atrophy composite
 
 
 @dataclass
 class ATNResult:
-    a_status: str            # positive | negative | indeterminate
+    a_status: str  # positive | negative | indeterminate
     t_status: str
     n_status: str
     centiloid: Optional[float]
-    profile: str             # e.g. "A+T-N+"
-    category: str            # NIA-AA biological category
+    profile: str  # e.g. "A+T-N+"
+    category: str  # NIA-AA biological category
     on_ad_continuum: Optional[bool]
     summary: str
 
@@ -130,7 +130,9 @@ class ATNBiomarkerProfiler:
         profile = f"A{self._sym(a_status)}T{self._sym(t_status)}N{self._sym(n_status)}"
         category, continuum = self._category(a_status, t_status, n_status)
         summary = self._summary(a_status, t_status, n_status, centiloid, category)
-        return ATNResult(a_status, t_status, n_status, centiloid, profile, category, continuum, summary)
+        return ATNResult(
+            a_status, t_status, n_status, centiloid, profile, category, continuum, summary
+        )
 
     # ------------------------------------------------------------- helpers
     @staticmethod
@@ -142,7 +144,10 @@ class ATNBiomarkerProfiler:
         if a == "indeterminate":
             # No amyloid measure: fall back to a neurodegeneration-only descriptor.
             if n == "positive":
-                return ("Neurodegeneration present; amyloid status unknown (PET needed to stage)", None)
+                return (
+                    "Neurodegeneration present; amyloid status unknown (PET needed to stage)",
+                    None,
+                )
             if n == "negative":
                 return ("No neurodegeneration; amyloid/tau status unknown (PET needed)", None)
             return ("Biomarker profile indeterminate (insufficient data)", None)
@@ -162,7 +167,10 @@ class ATNBiomarkerProfiler:
             return ("Alzheimer's disease (A+T+)", True)
         if t == "negative":
             if n == "positive":
-                return ("Alzheimer's pathologic change + concomitant neurodegeneration (A+T-N+)", True)
+                return (
+                    "Alzheimer's pathologic change + concomitant neurodegeneration (A+T-N+)",
+                    True,
+                )
             return ("Alzheimer's pathologic change (A+T-)", True)
         # tau indeterminate
         return ("Alzheimer's continuum — amyloid positive; tau PET needed to stage", True)
