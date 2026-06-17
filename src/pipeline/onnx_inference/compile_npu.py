@@ -1,6 +1,5 @@
 import os
 import torch
-import onnx
 from onnxruntime.quantization import quantize_dynamic, QuantType
 
 def export_and_quantize_multimodal_model(workspace_root: str):
@@ -65,7 +64,7 @@ def export_and_quantize_multimodal_model(workspace_root: str):
     raw_size = os.path.getsize(raw_onnx_path) / (1024 * 1024)
     quant_size = os.path.getsize(quant_onnx_path) / (1024 * 1024)
     
-    print(f"\n[SUCCESS] Multi-Modal attention network successfully quantized with trained weights!")
+    print("\n[SUCCESS] Multi-Modal attention network successfully quantized with trained weights!")
     print(f" -> Original Model Size  : {raw_size:.2f} MB")
     print(f" -> Quantized Model Size : {quant_size:.2f} MB (~{((raw_size - quant_size)/raw_size)*100:.1f}% reduction)")
 
