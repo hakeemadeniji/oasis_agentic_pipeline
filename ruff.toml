@@ -6,8 +6,16 @@
 # pattern necessarily places some imports after executable statements, which
 # triggers E402. It is intentional and not a real defect, so we ignore E402
 # globally rather than scatter `# noqa` on every entry point.
-target-version = "py314"
-line-length = 120
+# NOTE: deliberately py312, NOT py314, even though the project runs on 3.14+.
+# `ruff format` at a py314 target rewrites `except (A, B):` into the bare
+# `except A, B:` (a tuple form the 3.14 grammar accepts) which is a SyntaxError on
+# 3.11/3.12. Targeting py312 keeps the parenthesized, universally-portable form.
+target-version = "py312"
+# 100 matches the formatting applied across the codebase (and the former
+# pyproject/black line-length). Keep ruff.toml the single source of Ruff config —
+# the [tool.ruff] block was removed from pyproject.toml to avoid a dead, conflicting
+# second config (a root ruff.toml always wins over pyproject's [tool.ruff]).
+line-length = 100
 
 [lint]
 # Default rule set (pyflakes + a subset of pycodestyle) minus the intentional

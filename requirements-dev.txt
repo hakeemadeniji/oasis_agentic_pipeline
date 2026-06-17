@@ -1,0 +1,39 @@
+# OASIS Agentic Pipeline - Development & CI dependencies
+# Install on top of the runtime deps:
+#     pip install -r requirements.txt -r requirements-dev.txt
+#
+# These are intentionally kept out of requirements.txt so production/edge
+# installs stay lean. The pins are loose (>=) because the tooling is not part of
+# the shipped artifact.
+
+# --- Test stack -------------------------------------------------------------
+# pytest.ini's addopts hard-require pytest-cov (--cov); the bias-detection
+# performance test uses the `benchmark` fixture from pytest-benchmark, and the
+# CI benchmark job runs `pytest --benchmark-only`.
+pytest>=8.0
+pytest-cov>=5.0
+pytest-benchmark>=4.0
+
+# --- Linting / formatting ---------------------------------------------------
+# Ruff is the single linter/formatter of record (see ruff.toml). It subsumes
+# flake8 + isort + pylint. Pinned to match the CI lint job for reproducible
+# results (ruff's default rule set can shift between releases).
+#   ruff check .            # lint (CI hard gate)
+#   ruff format --check .   # formatting (advisory until a one-time `ruff format .`)
+ruff==0.15.17
+
+# --- Pre-commit hooks -------------------------------------------------------
+pre-commit>=3.8.0
+
+# --- Security scanning (CI security job) -----------------------------------
+bandit>=1.7
+safety>=3.2
+pip-audit>=0.8.0
+
+# --- Security & Rate Limiting (production dependencies) --------------------
+# These are added to requirements-dev for development/testing but should be
+# moved to requirements.txt for production deployment
+slowapi>=0.1.9
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.32

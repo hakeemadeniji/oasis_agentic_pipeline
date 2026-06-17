@@ -1,94 +1,110 @@
-# OASIS Agentic Pipeline - Docker Compose Configuration
-# Multi-service orchestration for production deployment
+# Docker Compose configuration for OASIS Agentic Pipeline
+# Provides local development environment with all required services
 
 version: '3.8'
 
 services:
-  # FastAPI Backend Service
+  # Main API service
   api:
     build:
       context: .
       dockerfile: Dockerfile
+      target: development
     container_name: oasis-api
     ports:
       - "8000:8000"
+      - "5678:5678"  # Debug port
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
       - ./src:/app/src
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
     environment:
-      - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=INFO
-      - WORKERS=4
-      - MAX_BATCH_SIZE=100
-      # Hybrid edge-cloud LLM: point the reasoner at the local Ollama service.
-      - ENABLE_LLM=true
-      - OLLAMA_EDGE_URL=http://ollama:11434
-      - OLLAMA_EDGE_MODEL=llama3.2:3b
-    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+      - DEBUG=true
+      - LOG_LEVEL=debug
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEVICE=cpu
+      - ENABLE_AUTH=true
+      - ENABLE_RATE_LIMITING=true
+      - ENABLE_REDIS_CACHE=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+      - ollama
+    networks:
+      - oasis-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    restart: unless-stopped
-    depends_on:
-      - ollama
-    networks:
-      - oasis-network
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 8G
-        reservations:
-          cpus: '2'
-          memory: 4G
 
-  # Streamlit Dashboard Service
-  dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: oasis-dashboard
+  # Redis cache service
+  redis:
+    image: redis:7-alpine
+    container_name: oasis-redis
     ports:
-      - "8501:8501"
+      - "6379:6379"
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./src:/app/src
-    environment:
-      - PYTHONUNBUFFERED=1
-      - STREAMLIT_SERVER_PORT=8501
-      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
-      - STREAMLIT_SERVER_HEADLESS=true
-      - ENABLE_LLM=true
-      - OLLAMA_EDGE_URL=http://ollama:11434
-      - OLLAMA_EDGE_MODEL=llama3.2:3b
-    command: streamlit run src/orchestrator/dashboard_enhanced.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
+      - redis-data:/data
+    command: redis-server --appendonly yes
     networks:
       - oasis-network
-    depends_on:
-      - api
-      - ollama
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
-        reservations:
-          cpus: '1'
-          memory: 2G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Prometheus Monitoring Service
+  # Ollama for local LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: oasis-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - oasis-network
+    restart: unless-stopped
+    # Pull and load a model on startup
+    command: >
+      sh -c "
+        ollama serve &
+        sleep 10 &&
+        ollama pull llama3.2:3b &&
+        tail -f /dev/null
+      "
+
+  # PostgreSQL for production database (optional for dev)
+  postgres:
+    image: postgres:15-alpine
+    container_name: oasis-postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=oasis_pipeline
+      - POSTGRES_USER=oasis_user
+      - POSTGRES_PASSWORD=oasis_password
+    networks:
+      - oasis-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oasis_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus for monitoring
   prometheus:
     image: prom/prometheus:latest
     container_name: oasis-prometheus
@@ -100,18 +116,11 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    restart: unless-stopped
     networks:
       - oasis-network
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 2G
+    restart: unless-stopped
 
-  # Grafana Visualization Service
+  # Grafana for visualization
   grafana:
     image: grafana/grafana:latest
     container_name: oasis-grafana
@@ -122,154 +131,47 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=oasis_admin_2026
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://localhost:3000
-    restart: unless-stopped
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     networks:
       - oasis-network
     depends_on:
       - prometheus
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-
-  # Ollama Local LLM Service (hybrid edge-cloud reasoner; no paid API keys)
-  ollama:
-    image: ollama/ollama:latest
-    container_name: oasis-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    # On a Snapdragon/edge host this maps to local silicon; in the cloud tier it
-    # can run a larger model. Pull the model once: `docker exec oasis-ollama ollama pull llama3.2:3b`
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
     restart: unless-stopped
-    networks:
-      - oasis-network
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 8G
 
-  # Redis Cache Service (for session management and caching)
-  redis:
-    image: redis:7-alpine
-    container_name: oasis-redis
-    ports:
-      - "6379:6379"
+  # Worker service for background tasks
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: oasis-worker
     volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - oasis-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-
-  # Nginx Reverse Proxy
-  nginx:
-    image: nginx:alpine
-    container_name: oasis-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - nginx-logs:/var/log/nginx
-    restart: unless-stopped
-    networks:
-      - oasis-network
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - WORKER_MODE=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
-      - api
-      - dashboard
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-
-  # Log Aggregation Service (Loki)
-  loki:
-    image: grafana/loki:latest
-    container_name: oasis-loki
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml
-      - loki-data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
-    restart: unless-stopped
+      - redis
     networks:
       - oasis-network
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-
-  # Promtail Log Collector
-  promtail:
-    image: grafana/promtail:latest
-    container_name: oasis-promtail
-    volumes:
-      - ./logs:/var/log/oasis
-      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
-    command: -config.file=/etc/promtail/config.yml
     restart: unless-stopped
-    networks:
-      - oasis-network
-    depends_on:
-      - loki
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
+    command: ["python", "-m", "src.utils.async_processing"]
 
 networks:
   oasis-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
 
 volumes:
-  prometheus-data:
-    driver: local
-  grafana-data:
-    driver: local
   redis-data:
     driver: local
   ollama-data:
     driver: local
-  loki-data:
+  postgres-data:
     driver: local
-  nginx-logs:
+  prometheus-data:
     driver: local
-
-# Usage:
-# Development: docker-compose up -d
-# Production: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-# Stop: docker-compose down
-# View logs: docker-compose logs -f [service_name]
-# Scale API: docker-compose up -d --scale api=3
+  grafana-data:
+    driver: local
