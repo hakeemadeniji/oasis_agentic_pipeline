@@ -2,7 +2,6 @@ import os
 import sys
 import torch
 import numpy as np
-import pandas as pd
 from torchvision import transforms
 from PIL import Image
 
@@ -15,23 +14,32 @@ from agents.vision.vision_agent import AlzheimerVisionAgent
 from agents.vision.explainer_agent import RadiomicsExplainerAgent
 from agents.biomarker.biomarker_agent import ClinicalBiomarkerAgent
 from agents.biomarker.temporal_analyst import TemporalAnalystAgent
+from agents.biomarker.volumetry_agent import RegionalVolumetryAgent
+from agents.biomarker.atn_classifier import ATNBiomarkerProfiler
+from agents.biomarker.pet_pup import PUPPetParser
 from agents.rag.rag_agent import MedicalLibrarianAgent
+from agents.llm.llm_reasoner import ClinicalReasonerAgent
 from orchestrator.ethicist_agent import MedicalEthicistAgent
+from config import get_settings
 
 class AdvancedChiefMedicalOfficer:
     """
-    Advanced Heterogeneous Swarm Orchestrator.
-    Directs 6 independent clinical agents spanning spatial imaging,
-    longitudinal kinetics, text RAG, and compliance guardrails.
+    Advanced Heterogeneous Swarm Orchestrator (hybrid edge-cloud).
+    Directs independent clinical agents spanning spatial imaging, longitudinal
+    kinetics, regional volumetry, text RAG, compliance guardrails, and an
+    Ollama-backed clinical reasoner -- with NPU-accelerated inference and zero
+    paid API tokens.
     """
     def __init__(self, workspace_root: str):
         print("\n=======================================================")
         print("  [SYSTEM BOOT] Advanced Multi-Agent Swarm Connected  ")
         print("=======================================================\n")
-        
+
         self.workspace_root = workspace_root
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+        self.settings = get_settings()
+        print(f"[CONFIG] {self.settings.summary()}")
+        self.device = torch.device(self.settings.resolve_device())
+
         # Establish accurate data file maps
         self.cross_csv = os.path.join(self.workspace_root, "data", "oasis_raw", "oasis_clinical_data.csv")
         self.long_csv = os.path.join(self.workspace_root, "data", "oasis_raw", "oasis_longitudinal.csv")
@@ -53,7 +61,9 @@ class AdvancedChiefMedicalOfficer:
         ])
         
         # 4. Initialize Agent 1: Vision Architecture
-        self.class_names = ["Non Demented", "Very mild Dementia", "Mild Dementia", "Moderate Dementia"]
+        # IMPORTANT: order must match torchvision ImageFolder's alphabetical class
+        # indexing used during training, otherwise correct predictions get mislabeled.
+        self.class_names = ["Mild Dementia", "Moderate Dementia", "Non Demented", "Very mild Dementia"]
         self.vision_agent = AlzheimerVisionAgent(num_classes=len(self.class_names)).to(self.device)
         
         weights_path = os.path.join(self.workspace_root, "src", "pipeline", "onnx_inference", "best_vision_agent.pth")
@@ -67,12 +77,38 @@ class AdvancedChiefMedicalOfficer:
         self.explainer_agent = RadiomicsExplainerAgent(self.vision_agent)
         
         # 6. Initialize Agent 6: Medical Ethicist Guardrail
-        self.ethicist_agent = MedicalEthicistAgent(confidence_floor=60.0)
-        
+        self.ethicist_agent = MedicalEthicistAgent(confidence_floor=self.settings.confidence_floor)
+
+        # 7. Initialize Agent 9: Regional Volumetry Analyst (FreeSurfer aseg)
+        fs_root = self.settings.freesurfer_root
+        if not os.path.isabs(fs_root):
+            fs_root = os.path.join(self.workspace_root, fs_root)
+        self.volumetry_agent = RegionalVolumetryAgent(freesurfer_root=fs_root)
+
+        # 8. Initialize Agent 8: Hybrid Edge-Cloud Clinical Reasoner (Ollama)
+        self.reasoner_agent = ClinicalReasonerAgent()
+
+        # 9. Initialize Agent 10: ATN Biomarker Profiler (NIA-AA framework) + PUP PET ingestion
+        self.atn_profiler = ATNBiomarkerProfiler(
+            amyloid_threshold_cl=self.settings.amyloid_positive_centiloid,
+            tau_threshold_suvr=self.settings.tau_positive_suvr,
+        )
+        pup_root = self.settings.pup_root
+        if not os.path.isabs(pup_root):
+            pup_root = os.path.join(self.workspace_root, pup_root)
+        self.pet_pup = PUPPetParser(
+            pup_root=pup_root,
+            amyloid_threshold_cl=self.settings.amyloid_positive_centiloid,
+            tau_threshold_suvr=self.settings.tau_positive_suvr,
+        )
+
+        # NOTE: must match the training-time normalization (mean=0.5, std=0.5);
+        # omitting it feeds out-of-distribution inputs and degrades accuracy.
         self.image_transform = transforms.Compose([
             transforms.Grayscale(num_output_channels=1),
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
         ])
         print("\n[SUCCESS] Hexagonal Multi-Agent Architecture Fully Linked.\n")
 
@@ -88,7 +124,31 @@ class AdvancedChiefMedicalOfficer:
         # B. Gather Longitudinal Kinetics
         long_metrics = self.temporal_agent.calculate_progression_trajectory(mock_subject_id)
         atrophy_vel = float(long_metrics.get('atrophy_velocity_pct', 0.0))
-        
+
+        # B2. Regional Volumetry (Agent 9): prefer real FreeSurfer aseg.stats,
+        # otherwise estimate from whole-brain biomarkers so the agent always returns data.
+        volumetry = self.volumetry_agent.analyze_subject(mock_subject_id)
+        if volumetry.source == "unavailable":
+            etiv = float(patient_row.get('eTIV', 1500.0))
+            # OASIS eTIV is reported in cm^3 in the tabular CSV; convert to mm^3.
+            etiv_mm3 = etiv * 1000.0 if etiv < 10000 else etiv
+            nwbv = float(patient_row.get('nWBV', 0.73))
+            volumetry = self.volumetry_agent.estimate_from_biomarkers(mock_subject_id, etiv_mm3, nwbv)
+
+        # B3. ATN biomarker profiling (Agent 10). The A/T axes are driven by real
+        # OASIS-3 PET (PUP) SUVR when available; the N axis comes from volumetry.
+        pet = self.pet_pup.analyze_subject(mock_subject_id)
+        hippo_zs = [r.z_score for r in volumetry.regions if "Hippocampus" in r.structure]
+        atn = self.atn_profiler.classify(
+            amyloid_suvr=pet.amyloid_suvr,
+            amyloid_centiloid=pet.amyloid_centiloid,
+            amyloid_tracer=pet.amyloid_tracer or "PIB",
+            tau_suvr=pet.tau_suvr,
+            hippocampus_z=(sum(hippo_zs) / len(hippo_zs)) if hippo_zs else None,
+            mta_risk=volumetry.mta_risk_score,
+            nwbv=float(patient_row.get('nWBV', 0.73)),
+        )
+
         # C. Gather Vision Analytics
         img = Image.open(image_path).convert('L')
         raw_transformed = self.image_transform(img)
@@ -118,8 +178,29 @@ class AdvancedChiefMedicalOfficer:
         
         # F. Trigger Semantic Literature Search
         query = f"Clinical metrics for an MMSE of {mmse:.1f} and localized brain tissue changes."
-        rag_output = self.rag_agent.query(query, top_k=1)[0][0]
-        
+        rag_results = self.rag_agent.query(query, top_k=2)
+        rag_output = rag_results[0][0]
+
+        # F2. Hybrid Edge-Cloud Clinical Reasoner (Agent 8): synthesize a grounded
+        # natural-language summary from every agent's structured output via Ollama.
+        authorized_class = pred_class if not is_flagged else "DIAGNOSIS WITHHELD (human review)"
+        evidence = {
+            "prediction": pred_class,
+            "authorized_class": authorized_class,
+            "confidence": confidence,
+            "age": round(age, 1),
+            "mmse": round(mmse, 1),
+            "clinical_trend": long_metrics.get('clinical_trend', 'N/A'),
+            "atrophy_velocity": atrophy_vel,
+            "volumetry_summary": volumetry.summary,
+            "atn_profile": atn.profile,
+            "atn_category": atn.category,
+            "ethics_flagged": is_flagged,
+            "ethics_message": restriction_log,
+            "rag_context": [doc for doc, _ in rag_results],
+        }
+        reasoning = self.reasoner_agent.synthesize(evidence)
+
         # G. Build Consolidated Diagnostic Output
         print("\n=======================================================")
         print("         SWARM CONSOLIDATED CLINICAL DIAGNOSIS         ")
@@ -139,15 +220,30 @@ class AdvancedChiefMedicalOfficer:
         print("-------------------------------------------------------")
         print("COMPLIANCE & RISK MANAGEMENT REPORT (Agent 6):")
         if is_flagged:
-            print(f" [CRITICAL ALARM] DIAGNOSIS OVERRIDDEN BY ETHICIST AGENT")
-            print(f" > Action Taken      : Halted deployment. Routed case file to Human Neurologist.")
+            print(" [CRITICAL ALARM] DIAGNOSIS OVERRIDDEN BY ETHICIST AGENT")
+            print(" > Action Taken      : Halted deployment. Routed case file to Human Neurologist.")
             print(f" > Infraction Reason : {restriction_log}")
         else:
             print(f" [STATUS: VERIFIED] {restriction_log}")
             print(f" > Authorized Diagnostic Classification: {pred_class}")
         print("-------------------------------------------------------")
+        print("REGIONAL VOLUMETRY (Agent 9):")
+        print(f" > Source            : {volumetry.source} | MTA stage: {volumetry.mta_stage}")
+        print(f" > {volumetry.summary}")
+        if volumetry.flags:
+            for flag in volumetry.flags:
+                print(f"   - {flag}")
+        print("-------------------------------------------------------")
+        print("ATN BIOMARKER PROFILE (Agent 10):")
+        print(f" > Profile {atn.profile} | {atn.category}")
+        print(f" > {pet.summary}")
+        print(f" > {atn.summary}")
+        print("-------------------------------------------------------")
         print("SUPPORTING MEDICAL LITERATURE (Agent 3):")
         print(f" > {rag_output}")
+        print("-------------------------------------------------------")
+        print(f"HYBRID EDGE-CLOUD CLINICAL REASONER (Agent 8) [tier={reasoning.tier}, model={reasoning.model}]:")
+        print(f" > {reasoning.narrative}")
         print("=======================================================\n")
 
 if __name__ == "__main__":

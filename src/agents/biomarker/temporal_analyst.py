@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-import numpy as np
 from typing import Dict, Any
 
 class TemporalAnalystAgent:
@@ -46,11 +45,19 @@ class TemporalAnalystAgent:
         total_loss = baseline_nwbv - recent_nwbv
         atrophy_velocity = (total_loss / baseline_nwbv) / years_elapsed * 100
         
-        # 3. Calculate Cognitive Drift: Total change in MMSE across tracking timeline
-        baseline_mmse = float(patient_history['MMSE'].iloc[0])
-        recent_mmse = float(patient_history['MMSE'].iloc[-1])
-        mmse_drift = recent_mmse - baseline_mmse
-        
+        # 3. Calculate Cognitive Drift: Total change in MMSE across tracking timeline.
+        # MMSE can be missing in the longitudinal CSV (e.g. demented dropouts), so
+        # impute from available visits and guard against NaN before integer casting.
+        mmse_series = patient_history['MMSE'].dropna()
+        if len(mmse_series) >= 2:
+            baseline_mmse = float(mmse_series.iloc[0])
+            recent_mmse = float(mmse_series.iloc[-1])
+            mmse_drift = recent_mmse - baseline_mmse
+        else:
+            mmse_drift = 0.0
+        if mmse_drift != mmse_drift:  # NaN guard
+            mmse_drift = 0.0
+
         # Determine tracking categorization
         if atrophy_velocity > 1.5 or mmse_drift <= -3:
             trend = "Aggressive Cognitive/Structural Decline"
@@ -58,12 +65,12 @@ class TemporalAnalystAgent:
             trend = "Typical Age-Related Neuro-Degradation"
         else:
             trend = "Stable / Linear Neuro-Maintenance"
-            
+
         return {
             "visits_tracked": num_visits,
             "years_monitored": round(years_elapsed, 2),
             "atrophy_velocity_pct": round(atrophy_velocity, 3),
-            "mmse_drift": int(mmse_drift),
+            "mmse_drift": int(round(mmse_drift)),
             "clinical_trend": trend
         }
 
@@ -72,7 +79,7 @@ if __name__ == "__main__":
     analyst = TemporalAnalystAgent(LONG_CSV)
     
     metrics = analyst.calculate_progression_trajectory("OAS2_0001")
-    print(f"\n--- Longitudinal Trajectory Analytics Output ---")
+    print("\n--- Longitudinal Trajectory Analytics Output ---")
     for k, v in metrics.items():
         print(f"{k.replace('_', ' ').title()}: {v}")
         
