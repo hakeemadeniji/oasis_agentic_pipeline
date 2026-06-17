@@ -19,15 +19,18 @@ from PIL import Image
 
 # A compact "jet"-like colormap (blue -> cyan -> green -> yellow -> red) as RGB
 # control points; clinically intuitive for activation intensity.
-_JET = np.array([
-    [0, 0, 128],
-    [0, 0, 255],
-    [0, 255, 255],
-    [0, 255, 0],
-    [255, 255, 0],
-    [255, 128, 0],
-    [255, 0, 0],
-], dtype=np.float32)
+_JET = np.array(
+    [
+        [0, 0, 128],
+        [0, 0, 255],
+        [0, 255, 255],
+        [0, 255, 0],
+        [255, 255, 0],
+        [255, 128, 0],
+        [255, 0, 0],
+    ],
+    dtype=np.float32,
+)
 
 
 def _apply_jet(norm: np.ndarray) -> np.ndarray:
@@ -75,7 +78,7 @@ def render_gradcam(
     # Blend overlay, weighting the overlay by activation so quiet regions stay
     # close to the underlying anatomy.
     base_arr = np.asarray(base_rgb, dtype=np.float32)
-    weight = (hm_up[..., None] * alpha)
+    weight = hm_up[..., None] * alpha
     blended = base_arr * (1 - weight) + color.astype(np.float32) * weight
     overlay_img = Image.fromarray(np.clip(blended, 0, 255).astype(np.uint8), mode="RGB")
 
