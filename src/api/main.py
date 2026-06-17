@@ -105,6 +105,7 @@ class DiagnosisResponse(BaseModel):
     ethics_audit: Dict[str, Any]
     regional_volumetry: Dict[str, Any] = {}
     atn_profile: Dict[str, Any] = {}
+    differential: Dict[str, Any] = {}
     clinical_narrative: str = ""
     reasoning_tier: str = ""
     final_diagnosis: str
@@ -340,8 +341,8 @@ async def diagnose_patient(request: DiagnosisRequest):
         # Final diagnosis
         final_diagnosis = vision_result["class"] if not is_flagged else "DIAGNOSIS_BLOCKED"
 
-        # Hybrid edge-cloud clinical reasoner (Agent 8): grounded narrative via local Ollama.
-        reasoning = cmo.reasoner_agent.synthesize({
+        # Consolidated evidence for the LLM agents (hybrid Ollama/Claude).
+        evidence = {
             "prediction": vision_result["class"],
             "authorized_class": final_diagnosis,
             "confidence": vision_result["confidence"],
@@ -350,10 +351,18 @@ async def diagnose_patient(request: DiagnosisRequest):
             "clinical_trend": temporal_result.get("trend", "N/A"),
             "atrophy_velocity": temporal_result.get("atrophy_velocity", 0.0),
             "volumetry_summary": volumetry_summary,
+            "hippocampus_z": (sum(hippo_zs) / len(hippo_zs)) if hippo_zs else None,
+            "atn_a": atn_dict.get("a_status"),
+            "atn_t": atn_dict.get("t_status"),
+            "atn_n": atn_dict.get("n_status"),
+            "atn_category": atn_dict.get("category"),
             "ethics_flagged": is_flagged,
             "ethics_message": restriction_log,
             "rag_context": rag_context,
-        })
+        }
+        # Agent 8 (grounded narrative) + Agent 11 (ranked differential).
+        reasoning = cmo.reasoner_agent.synthesize(evidence)
+        differential = cmo.differential_agent.analyze(evidence)
 
         return DiagnosisResponse(
             patient_id=request.patient_data.patient_id,
@@ -366,6 +375,7 @@ async def diagnose_patient(request: DiagnosisRequest):
             ethics_audit=ethics_result,
             regional_volumetry=volumetry_dict,
             atn_profile=atn_dict,
+            differential=differential.to_dict(),
             clinical_narrative=reasoning.narrative,
             reasoning_tier=f"{reasoning.tier}:{reasoning.model}",
             final_diagnosis=final_diagnosis,
@@ -594,6 +604,19 @@ async def get_statistics():
         "agents_active": 8,
         "uptime": "N/A"  # Would need to track startup time
     }
+
+
+# Cure-research endpoint: deterministic mining + Claude therapeutic hypotheses
+@app.get("/research", tags=["Research"])
+async def cure_research():
+    """
+    Run the OASIS cure-research experiment engine + Therapeutic Insight agent
+    (Agent 12). Returns deterministic statistical findings plus grounded,
+    testable research hypotheses for treating/preventing Alzheimer's.
+    """
+    if cmo is None:
+        raise HTTPException(status_code=503, detail="CMO not initialized")
+    return cmo.run_cure_research()
 
 
 # Sample MRI endpoint (one-click demo for the clinical console)

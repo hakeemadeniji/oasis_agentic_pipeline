@@ -46,6 +46,9 @@ from agents.biomarker.atn_classifier import ATNBiomarkerProfiler  # noqa: E402
 from agents.biomarker.pet_pup import PUPPetParser  # noqa: E402
 from orchestrator.ethicist_agent import MedicalEthicistAgent  # noqa: E402
 from agents.llm.llm_reasoner import ClinicalReasonerAgent  # noqa: E402
+from agents.llm.differential_agent import DifferentialDiagnosisAgent  # noqa: E402
+from agents.llm.therapeutic_agent import TherapeuticInsightAgent  # noqa: E402
+from pipeline.research.cure_research import CureResearchEngine  # noqa: E402
 from api.heatmap import render_gradcam  # noqa: E402
 
 CLASS_NAMES = ["Mild Dementia", "Moderate Dementia", "Non Demented", "Very mild Dementia"]
@@ -72,6 +75,10 @@ class Engine:
         self.volumetry = RegionalVolumetryAgent(freesurfer_root=fs_root)
         self.ethicist = MedicalEthicistAgent(confidence_floor=self.settings.confidence_floor)
         self.reasoner = ClinicalReasonerAgent()
+        self.differential = DifferentialDiagnosisAgent()
+        self.therapeutic = TherapeuticInsightAgent()
+        self.research_engine = CureResearchEngine(ROOT)
+        self._research_cache = None
         self.atn = ATNBiomarkerProfiler(
             amyloid_threshold_cl=self.settings.amyloid_positive_centiloid,
             tau_threshold_suvr=self.settings.tau_positive_suvr,
@@ -150,13 +157,19 @@ class Engine:
             vision_result["class"], vision_result["confidence"], mmse, temporal["atrophy_velocity"])
         final = vision_result["class"] if not flagged else "DIAGNOSIS_BLOCKED"
 
-        reasoning = self.reasoner.synthesize({
+        hippo_z = (sum(hippo_zs) / len(hippo_zs)) if hippo_zs else None
+        evidence = {
             "prediction": vision_result["class"], "authorized_class": final,
             "confidence": vision_result["confidence"], "age": age, "mmse": mmse,
             "clinical_trend": temporal["trend"], "atrophy_velocity": 0.0,
             "volumetry_summary": vol.summary, "ethics_flagged": flagged,
             "ethics_message": msg, "rag_context": [],
-        })
+            "hippocampus_z": hippo_z,
+            "atn_a": atn.a_status, "atn_t": atn.t_status, "atn_n": atn.n_status,
+            "atn_category": atn.category,
+        }
+        reasoning = self.reasoner.synthesize(evidence)
+        differential = self.differential.analyze(evidence)
 
         return {
             "patient_id": pdata.get("patient_id", "UNKNOWN"),
@@ -168,12 +181,21 @@ class Engine:
             "ethics_audit": {"approved": not flagged, "message": msg},
             "regional_volumetry": vol_dict,
             "atn_profile": atn_out,
+            "differential": differential.to_dict(),
             "clinical_narrative": reasoning.narrative,
             "reasoning_tier": f"{reasoning.tier}:{reasoning.model}",
             "final_diagnosis": final,
             "confidence": vision_result["confidence"],
             "approved": not flagged,
         }
+
+    def research(self) -> dict:
+        """Run the deterministic cure-research engine + Claude therapeutic synthesis (cached)."""
+        if self._research_cache is None:
+            report = self.research_engine.run().to_dict()
+            insight = self.therapeutic.analyze(report)
+            self._research_cache = {"report": report, "insight": insight.to_dict()}
+        return self._research_cache
 
 
 ENGINE: "Engine | None" = None
@@ -210,6 +232,11 @@ class Handler(BaseHTTPRequestHandler):
                                     "llm": ENGINE.settings.summary()})
         if path == "/api/sample":
             return self._sample(parse_qs(parsed.query).get("label", [None])[0])
+        if path == "/research":
+            try:
+                return self._json(200, ENGINE.research())
+            except Exception as e:  # pragma: no cover
+                return self._json(500, {"detail": str(e)})
         if path.startswith("/app/"):
             return self._static(path[len("/app/"):] or "index.html")
         return self._json(404, {"detail": "not found"})

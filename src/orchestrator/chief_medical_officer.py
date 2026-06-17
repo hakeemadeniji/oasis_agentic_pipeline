@@ -19,6 +19,9 @@ from agents.biomarker.atn_classifier import ATNBiomarkerProfiler
 from agents.biomarker.pet_pup import PUPPetParser
 from agents.rag.rag_agent import MedicalLibrarianAgent
 from agents.llm.llm_reasoner import ClinicalReasonerAgent
+from agents.llm.differential_agent import DifferentialDiagnosisAgent
+from agents.llm.therapeutic_agent import TherapeuticInsightAgent
+from pipeline.research.cure_research import CureResearchEngine
 from orchestrator.ethicist_agent import MedicalEthicistAgent
 from config import get_settings
 
@@ -85,8 +88,14 @@ class AdvancedChiefMedicalOfficer:
             fs_root = os.path.join(self.workspace_root, fs_root)
         self.volumetry_agent = RegionalVolumetryAgent(freesurfer_root=fs_root)
 
-        # 8. Initialize Agent 8: Hybrid Edge-Cloud Clinical Reasoner (Ollama)
+        # 8. Initialize Agent 8: Hybrid Clinical Reasoner (Ollama + Claude)
         self.reasoner_agent = ClinicalReasonerAgent()
+
+        # 11/12. Differential Diagnosis (Claude) + Therapeutic Insight + cure-research engine
+        self.differential_agent = DifferentialDiagnosisAgent()
+        self.therapeutic_agent = TherapeuticInsightAgent()
+        self.research_engine = CureResearchEngine(self.workspace_root)
+        self._research_cache = None
 
         # 9. Initialize Agent 10: ATN Biomarker Profiler (NIA-AA framework) + PUP PET ingestion
         self.atn_profiler = ATNBiomarkerProfiler(
@@ -195,11 +204,17 @@ class AdvancedChiefMedicalOfficer:
             "volumetry_summary": volumetry.summary,
             "atn_profile": atn.profile,
             "atn_category": atn.category,
+            "atn_a": atn.a_status,
+            "atn_t": atn.t_status,
+            "atn_n": atn.n_status,
+            "hippocampus_z": (sum(hippo_zs) / len(hippo_zs)) if hippo_zs else None,
             "ethics_flagged": is_flagged,
             "ethics_message": restriction_log,
             "rag_context": [doc for doc, _ in rag_results],
         }
         reasoning = self.reasoner_agent.synthesize(evidence)
+        # Agent 11: ranked differential across dementia etiologies (Claude deep tier).
+        differential = self.differential_agent.analyze(evidence)
 
         # G. Build Consolidated Diagnostic Output
         print("\n=======================================================")
@@ -239,12 +254,29 @@ class AdvancedChiefMedicalOfficer:
         print(f" > {pet.summary}")
         print(f" > {atn.summary}")
         print("-------------------------------------------------------")
+        print(f"DIFFERENTIAL DIAGNOSIS (Agent 11) [{differential.provider}]:")
+        for rank in differential.ranking[:3]:
+            print(f" > {rank.get('likelihood', '?'):>3}%  {rank.get('etiology', '?')}")
+        print(f" > Work-up: {'; '.join(differential.recommended_workup[:2])}")
+        print("-------------------------------------------------------")
         print("SUPPORTING MEDICAL LITERATURE (Agent 3):")
         print(f" > {rag_output}")
         print("-------------------------------------------------------")
         print(f"HYBRID EDGE-CLOUD CLINICAL REASONER (Agent 8) [tier={reasoning.tier}, model={reasoning.model}]:")
         print(f" > {reasoning.narrative}")
         print("=======================================================\n")
+
+    def run_cure_research(self) -> dict:
+        """
+        Run the deterministic cure-research experiment engine (Agent: research) and
+        the Claude-powered Therapeutic Insight agent (Agent 12) over the cohort,
+        returning grounded, testable hypotheses. Cached after first run.
+        """
+        if self._research_cache is None:
+            report = self.research_engine.run().to_dict()
+            insight = self.therapeutic_agent.analyze(report)
+            self._research_cache = {"report": report, "insight": insight.to_dict()}
+        return self._research_cache
 
 if __name__ == "__main__":
     ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
