@@ -38,6 +38,27 @@ function colorForClass(label) {
   return "var(--accent)";
 }
 
+/* ---------------- theme ---------------- */
+const THEMES = ["midnight", "ocean", "slate", "amber", "clinical"];
+function applyTheme(name) {
+  if (!THEMES.includes(name)) name = "midnight";
+  if (name === "midnight") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = name;
+  try { localStorage.setItem("oasis-theme", name); } catch (_) {}
+  const sel = $("themeSelect");
+  if (sel) sel.value = name;
+}
+function initTheme() {
+  let saved = "midnight";
+  try {
+    saved = localStorage.getItem("oasis-theme")
+      || new URLSearchParams(location.search).get("theme") || "midnight";
+  } catch (_) {}
+  applyTheme(saved);
+  const sel = $("themeSelect");
+  if (sel) sel.addEventListener("change", () => applyTheme(sel.value));
+}
+
 /* ---------------- status / clock ---------------- */
 function startClock() {
   const tick = () => ($("clock").textContent = new Date().toLocaleTimeString());
@@ -444,6 +465,7 @@ function applyOverlay() {
 
 /* ---------------- init ---------------- */
 function init() {
+  initTheme();
   startClock();
   refreshStatus();
   $("btnSample").addEventListener("click", loadSample);

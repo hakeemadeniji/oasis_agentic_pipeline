@@ -23,6 +23,11 @@
   --radius: 14px;
   --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* themeable background glows + top bar (overridden per data-theme below) */
+  --glow-1: #11202c;
+  --glow-2: #131c2a;
+  --topbar-1: rgba(20, 27, 36, .95);
+  --topbar-2: rgba(15, 20, 27, .92);
 }
 
 * { box-sizing: border-box; }
@@ -31,9 +36,10 @@ body {
   margin: 0;
   font-family: var(--sans);
   background:
-    radial-gradient(1200px 600px at 80% -10%, #11202c 0%, transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, #131c2a 0%, transparent 55%),
+    radial-gradient(1200px 600px at 80% -10%, var(--glow-1) 0%, transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, var(--glow-2) 0%, transparent 55%),
     var(--bg);
+  transition: background-color .25s ease, color .25s ease;
   color: var(--txt);
   -webkit-font-smoothing: antialiased;
   display: flex;
@@ -48,7 +54,7 @@ body {
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; padding: 12px 22px;
-  background: linear-gradient(180deg, rgba(20,27,36,.95), rgba(15,20,27,.92));
+  background: linear-gradient(180deg, var(--topbar-1), var(--topbar-2));
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(8px);
   position: sticky; top: 0; z-index: 20;
@@ -319,4 +325,60 @@ body {
   .viewport { max-height: 70vh; }
   .brand-mark { width: 56px; height: 56px; font-size: 32px; }
 }
+
+/* ============================================================
+   Theme picker — a pill in the top bar (see app.js).
+   ============================================================ */
+.theme-pick { gap: 7px; padding: 5px 10px 5px 12px; cursor: pointer; }
+.theme-pick select {
+  background: transparent; color: var(--txt-dim); border: none; outline: none;
+  font: inherit; font-size: .76rem; cursor: pointer; padding-right: 2px;
+}
+.theme-pick select option { background: var(--panel-2); color: var(--txt); }
+
+/* ============================================================
+   Selectable themes (set via data-theme on <html>).
+   "Midnight" is the default declared in :root above; the MRI
+   viewport and brain map intentionally stay dark in every theme
+   (radiology convention — scans read best on black).
+   ============================================================ */
+html[data-theme="ocean"] {
+  --bg: #06101b; --bg-2: #0b1825; --panel: #0e1b2a; --panel-2: #122433; --card: #142a3c;
+  --line: #1f3447; --line-soft: #16273a;
+  --txt: #e9f3fb; --txt-dim: #a6c3d8; --txt-mute: #6f90a8;
+  --accent: #38bdf8; --accent-2: #22d3ee; --purple: #8b9bf0;
+  --glow-1: #0c2d44; --glow-2: #0a2236;
+  --topbar-1: rgba(12, 28, 44, .95); --topbar-2: rgba(8, 20, 32, .92);
+}
+html[data-theme="slate"] {
+  --bg: #0e1014; --bg-2: #15181f; --panel: #171b22; --panel-2: #1d222b; --card: #20262f;
+  --line: #2b313c; --line-soft: #20252e;
+  --txt: #e8eaee; --txt-dim: #aab3c0; --txt-mute: #727a86;
+  --accent: #7c9cff; --accent-2: #9aa7b8;
+  --glow-1: #1a2030; --glow-2: #171b24;
+  --topbar-1: rgba(23, 27, 34, .96); --topbar-2: rgba(17, 20, 26, .93);
+}
+html[data-theme="amber"] {
+  --bg: #140f08; --bg-2: #1d160c; --panel: #201810; --panel-2: #281f14; --card: #2b2115;
+  --line: #3a2d1a; --line-soft: #2a2013;
+  --txt: #f5ecdc; --txt-dim: #d8c3a0; --txt-mute: #9c876a;
+  --accent: #f0a93b; --accent-2: #e8c468; --purple: #d6a25a;
+  --glow-1: #2a1d0c; --glow-2: #241608;
+  --topbar-1: rgba(32, 24, 16, .96); --topbar-2: rgba(24, 18, 11, .93);
+}
+html[data-theme="clinical"] {
+  --bg: #eef2f7; --bg-2: #e6ecf3; --panel: #ffffff; --panel-2: #f5f8fc; --card: #ffffff;
+  --line: #d4dde7; --line-soft: #e6edf4;
+  --txt: #15202b; --txt-dim: #46566a; --txt-mute: #7a8b9c;
+  --accent: #1769d1; --accent-2: #0e9b8c;
+  --good: #1f9d57; --warn: #c07d12; --bad: #d33d3d; --purple: #6b54c6;
+  --glow-1: #dbe8f6; --glow-2: #e6eff8;
+  --topbar-1: rgba(255, 255, 255, .92); --topbar-2: rgba(238, 242, 247, .9);
+}
+/* Light-theme contrast touch-ups for tinted banners/badges (dark text on light tint) */
+html[data-theme="clinical"] .ethics-banner.ok { color: #14683f; }
+html[data-theme="clinical"] .ethics-banner.flag,
+html[data-theme="clinical"] .narrative.flagged,
+html[data-theme="clinical"] .hyp-badge.high { color: #a32d2d; }
+html[data-theme="clinical"] .hyp-badge.medium { color: #8a5a12; }
 @media (min-width: 3500px) { html { font-size: 28px; } }

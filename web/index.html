@@ -3,8 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="dark light" />
   <title>OASIS Clinical Console — Alzheimer's Decision Support</title>
+  <!-- Apply the saved/URL theme before first paint to avoid a flash. -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("oasis-theme")
+          || new URLSearchParams(location.search).get("theme");
+        if (t && t !== "midnight") document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="/" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -22,6 +32,16 @@
       <div class="status-pill" id="pillHealth"><span class="dot dot-idle"></span><span>Connecting…</span></div>
       <div class="status-pill" id="pillAccel" title="Inference accelerator">NPU: —</div>
       <div class="status-pill" id="pillLLM" title="Language reasoner tier">LLM: —</div>
+      <label class="status-pill theme-pick" title="Interface theme">
+        <span aria-hidden="true">🎨</span>
+        <select id="themeSelect" aria-label="Interface theme">
+          <option value="midnight">Midnight</option>
+          <option value="ocean">Ocean</option>
+          <option value="slate">Slate</option>
+          <option value="amber">Amber</option>
+          <option value="clinical">Clinical (light)</option>
+        </select>
+      </label>
       <div class="status-pill clock" id="clock">--:--:--</div>
     </div>
   </header>
