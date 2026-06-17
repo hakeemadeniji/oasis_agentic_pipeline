@@ -201,6 +201,10 @@ function renderResult(r) {
   // ATN biomarker profile
   renderATN(r.atn_profile || {});
 
+  // Differential diagnosis + anatomical brain map
+  renderDifferential(r.differential || {});
+  updateBrainMap(r.regional_volumetry || {}, r.atn_profile || {});
+
   // Temporal + biomarker
   const t = r.temporal_analysis || {};
   $("tTrend").textContent = t.trend || "N/A";
@@ -299,6 +303,137 @@ function renderATN(atn) {
   $("atnCategory").textContent = cat;
 }
 
+/* ---------------- differential diagnosis ---------------- */
+function renderDifferential(diff) {
+  const wrap = $("diffBars");
+  const ranking = diff.ranking || [];
+  $("diffProvider").textContent = diff.provider ? diff.provider.split(":")[0] : "Agent 11";
+  if (!ranking.length) { wrap.innerHTML = '<p class="muted">No differential.</p>'; return; }
+  wrap.innerHTML = "";
+  const max = Math.max(...ranking.map((r) => r.likelihood || 0), 1);
+  ranking.forEach((r, i) => {
+    const pct = r.likelihood || 0;
+    const row = document.createElement("div");
+    row.className = "bar-row" + (i === 0 ? " top" : "");
+    row.title = r.rationale || "";
+    row.innerHTML = `
+      <div class="bar-head"><span>${r.etiology}</span><b>${pct}%</b></div>
+      <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>`;
+    wrap.appendChild(row);
+    requestAnimationFrame(() => (row.querySelector(".bar-fill").style.width = (pct / max * 100) + "%"));
+  });
+  $("diffWorkup").textContent = (diff.recommended_workup || []).length
+    ? "Work-up: " + diff.recommended_workup.slice(0, 3).join("; ") : "";
+}
+
+/* ---------------- anatomical brain map (glowing regions) ---------------- */
+const REGION_MAP = {
+  "Left-Hippocampus": "r-hippo-l", "Right-Hippocampus": "r-hippo-r",
+  "Left-Amygdala": "r-amyg-l", "Right-Amygdala": "r-amyg-r",
+  "Left-Lateral-Ventricle": "r-vent-l", "Right-Lateral-Ventricle": "r-vent-r",
+  "3rd-Ventricle": "r-vent3",
+};
+function glowColor(sev) {
+  // teal -> amber -> red as severity rises
+  if (sev < 0.34) return "#21c7b6";
+  if (sev < 0.67) return "#f0a93b";
+  return "#ef5a5a";
+}
+function setRegionGlow(el, sev, label, detail) {
+  const color = glowColor(sev);
+  el.style.fill = sev > 0.05
+    ? `color-mix(in srgb, ${color} ${Math.round(20 + sev * 70)}%, #18212c)`
+    : "#1d2733";
+  el.style.filter = sev > 0.05 ? `drop-shadow(0 0 ${4 + sev * 22}px ${color})` : "none";
+  el.dataset.detail = detail || "";
+}
+function updateBrainMap(vol, atn) {
+  state.brainData = { vol, atn };
+  // reset all
+  document.querySelectorAll("#brainMap .region").forEach((el) => setRegionGlow(el, 0));
+  const regions = vol.regions || [];
+  if (regions.length) {
+    regions.forEach((reg) => {
+      const id = REGION_MAP[reg.structure];
+      if (!id) return;
+      const el = $(id);
+      if (!el) return;
+      // oriented z: negative = abnormal. severity from how negative.
+      const sev = Math.max(0, Math.min(1, -reg.z_score / 3));
+      setRegionGlow(el, sev, reg.structure, `${reg.structure.replace(/-/g, " ")}: z=${reg.z_score >= 0 ? "+" : ""}${reg.z_score.toFixed(1)}${reg.abnormal ? " (abnormal)" : ""}`);
+    });
+    $("r-cortex").dataset.detail = vol.summary || "";
+  } else {
+    // estimated / whole-brain only: glow the cortex by MTA risk
+    const sev = Math.max(0, Math.min(1, (vol.mta_risk_score || 0) / 2));
+    setRegionGlow($("r-cortex"), sev, "Cortex", vol.summary || "Whole-brain estimate");
+  }
+}
+function brainTip(evt) {
+  const el = evt.target.closest(".region");
+  const tip = $("brainTip");
+  if (!el || !el.dataset.detail) { tip.hidden = true; return; }
+  const vp = $("viewport").getBoundingClientRect();
+  tip.textContent = el.dataset.detail;
+  tip.style.left = (evt.clientX - vp.left + 12) + "px";
+  tip.style.top = (evt.clientY - vp.top + 12) + "px";
+  tip.hidden = false;
+}
+
+/* ---------------- cure-research lab ---------------- */
+async function runResearch() {
+  const btn = $("btnResearch");
+  btn.disabled = true;
+  btn.textContent = "🧪 Mining cohort…";
+  try {
+    const data = await api("/research");
+    const report = data.report || {};
+    const insight = data.insight || {};
+    const fwrap = $("researchFindings");
+    fwrap.innerHTML = "";
+    (report.findings || []).slice(0, 6).forEach((f) => {
+      const d = document.createElement("div");
+      d.className = "finding";
+      const p = f.p_value != null ? ` (p=${f.p_value})` : "";
+      d.innerHTML = `<b>${f.name}</b> — ${f.metric}=${f.value}${p}<br>${f.interpretation}`;
+      fwrap.appendChild(d);
+    });
+    $("researchProvider").textContent = insight.provider ? insight.provider.split(":")[0] : "";
+    const hwrap = $("researchHyps");
+    hwrap.innerHTML = "";
+    (insight.hypotheses || []).forEach((h) => {
+      const li = document.createElement("li");
+      li.className = "hyp";
+      li.innerHTML = `
+        <div class="hyp-title"><span>${h.title}</span><span class="hyp-badge ${h.strength || 'low'}">${h.strength || ''}</span></div>
+        <p><b>Evidence:</b> ${h.evidence || ''}</p>
+        <p><b>Mechanism:</b> ${h.mechanism || ''}</p>
+        <p class="hyp-next"><b>Next experiment:</b> ${h.next_experiment || ''}</p>`;
+      hwrap.appendChild(li);
+    });
+    $("researchOut").hidden = false;
+    toast("Cure-research complete — " + (insight.hypotheses || []).length + " hypotheses");
+  } catch (e) {
+    toast("Research failed: " + e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🧪 Run cure-research experiments";
+  }
+}
+
+/* ---------------- view toggle (scan / brain map) ---------------- */
+function setView(view) {
+  const brain = view === "brain";
+  $("brainMap").hidden = !brain;
+  $("brainLegend").hidden = !brain;
+  $("imgBase").style.visibility = brain ? "hidden" : "visible";
+  $("imgOverlay").style.visibility = brain ? "hidden" : "visible";
+  $("heatmapCtl").style.opacity = brain ? 0.35 : 1;
+  $("viewportLegend").hidden = brain || !$("imgOverlay").src;
+  document.querySelectorAll("#viewSeg .seg-btn").forEach((b) =>
+    b.classList.toggle("active", b.dataset.view === view));
+}
+
 /* ---------------- viewer controls ---------------- */
 function applyOverlay() {
   const on = $("overlayToggle").checked;
@@ -317,6 +452,11 @@ function init() {
   $("overlayToggle").addEventListener("change", applyOverlay);
   $("opacity").addEventListener("input", applyOverlay);
   $("btnInvert").addEventListener("click", () => $("imgBase").classList.toggle("invert"));
+  document.querySelectorAll("#viewSeg .seg-btn").forEach((b) =>
+    b.addEventListener("click", () => setView(b.dataset.view)));
+  $("brainMap").addEventListener("mousemove", brainTip);
+  $("brainMap").addEventListener("mouseleave", () => ($("brainTip").hidden = true));
+  $("btnResearch").addEventListener("click", runResearch);
 
   // Kiosk / auto mode (?auto=1): for unattended hospital displays & demos.
   // Loads a sample scan and runs the full analysis on load, then optionally loops.

@@ -242,6 +242,49 @@ body {
 .atn-chip.ind .atn-v { color: var(--txt-mute); }
 .atn-category { font-size: .82rem; color: var(--txt); margin: 12px 0 0; font-weight: 600; }
 
+/* segmented view toggle */
+.seg { display: inline-flex; background: var(--bg-2); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg-btn { background: transparent; border: none; color: var(--txt-dim); font-size: .76rem; padding: 6px 12px; cursor: pointer; }
+.seg-btn.active { background: var(--accent); color: #04121a; font-weight: 700; }
+
+/* brain map */
+#brainMap { position: absolute; inset: 0; margin: auto; width: 86%; height: 86%; z-index: 3; }
+#brainMap .region { fill: url(#cortexGrad); stroke: #2c3a49; stroke-width: 1.5; transition: filter .4s, fill .4s; cursor: pointer; }
+#brainMap #r-cortex { fill: url(#cortexGrad); }
+#brainMap .region:not(#r-cortex) { fill: #1d2733; }
+#brainMap .fissure { stroke: #2c3a49; stroke-width: 2; }
+#brainMap .region:hover { stroke: var(--accent); stroke-width: 2.5; }
+.brain-tip {
+  position: absolute; z-index: 5; pointer-events: none; background: rgba(5,8,12,.92);
+  border: 1px solid var(--accent); border-radius: 8px; padding: 7px 10px; font-size: .72rem;
+  color: var(--txt); max-width: 200px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+}
+.brain-legend {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 4;
+  display: flex; align-items: center; gap: 8px; font-size: .66rem; color: var(--txt-dim);
+  background: rgba(5,8,12,.7); padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line);
+}
+.brain-ramp { width: 120px; height: 8px; border-radius: 4px;
+  background: linear-gradient(90deg, #21c7b6, #f0a93b, #ef5a5a); }
+
+/* differential + research */
+#diffBars .bar-row.top .bar-fill { background: linear-gradient(90deg, var(--bad), var(--warn)); }
+.research-card .btn { width: 100%; margin-top: 4px; }
+.research-h { font-size: .8rem; margin: 14px 0 8px; color: var(--txt); }
+.findings { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.finding { font-size: .76rem; color: var(--txt-dim); border-left: 3px solid var(--accent2); padding-left: 9px; }
+.finding b { color: var(--txt); }
+.hypotheses { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hyp { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; }
+.hyp-title { font-size: .82rem; font-weight: 600; color: var(--txt); display: flex; justify-content: space-between; gap: 8px; }
+.hyp-badge { font-size: .62rem; text-transform: uppercase; letter-spacing: .5px; padding: 2px 7px; border-radius: 999px; }
+.hyp-badge.high { background: rgba(239,90,90,.18); color: #f6c9c9; }
+.hyp-badge.medium { background: rgba(240,169,59,.18); color: #f3d6a6; }
+.hyp-badge.low { background: rgba(159,176,192,.15); color: var(--txt-dim); }
+.hyp p { font-size: .74rem; color: var(--txt-dim); margin: 6px 0 0; line-height: 1.5; }
+.hyp .hyp-next { color: var(--accent2); }
+.research-disclaimer { font-size: .68rem; color: var(--warn); margin: 12px 0 0; }
+
 .narrative { font-size: .88rem; line-height: 1.6; color: var(--txt); white-space: pre-wrap; margin: 0; }
 .narrative.flagged { color: #f6c9c9; }
 .evidence { margin: 0; padding-left: 18px; }
