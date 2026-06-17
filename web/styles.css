@@ -381,4 +381,33 @@ html[data-theme="clinical"] .ethics-banner.flag,
 html[data-theme="clinical"] .narrative.flagged,
 html[data-theme="clinical"] .hyp-badge.high { color: #a32d2d; }
 html[data-theme="clinical"] .hyp-badge.medium { color: #8a5a12; }
+
+/* Additional palettes. */
+html[data-theme="t6"] {
+  --bg: #04080a; --bg-2: #081014; --panel: #0a1518; --panel-2: #0d1c20; --card: #0f2226;
+  --line: #16323a; --line-soft: #102429;
+  --txt: #cdefe6; --txt-dim: #79b8ac; --txt-mute: #4f8077;
+  --accent: #2ff0c4; --accent-2: #36d0a0; --purple: #5fd0e0;
+  --good: #3fdc8a; --warn: #f0c24a; --bad: #ff6a6a;
+  --glow-1: #06241f; --glow-2: #05201c;
+  --topbar-1: rgba(8, 21, 24, .95); --topbar-2: rgba(5, 14, 16, .92);
+}
+html[data-theme="t7"] {
+  --bg: #060814; --bg-2: #0a0e1f; --panel: #0d1226; --panel-2: #111733; --card: #141b3a;
+  --line: #26306a; --line-soft: #18203f;
+  --txt: #dde6ff; --txt-dim: #9aa6d8; --txt-mute: #646e9e;
+  --accent: #36d6ff; --accent-2: #c062ff; --purple: #c062ff;
+  --good: #3fe0b0; --warn: #ffcf5a; --bad: #ff5f8f;
+  --glow-1: #121a54; --glow-2: #1d1248;
+  --topbar-1: rgba(13, 18, 38, .95); --topbar-2: rgba(8, 11, 26, .92);
+}
+html[data-theme="t8"] {
+  --bg: #070604; --bg-2: #0e0b06; --panel: #12100a; --panel-2: #19150d; --card: #1d180f;
+  --line: #33291a; --line-soft: #241d11;
+  --txt: #f3e7cf; --txt-dim: #cdb487; --txt-mute: #8c7752;
+  --accent: #ffb02e; --accent-2: #ff7a3c; --purple: #e0a050;
+  --good: #9bd14a; --warn: #ffcf5a; --bad: #ff5a4a;
+  --glow-1: #241405; --glow-2: #1e0f05;
+  --topbar-1: rgba(18, 16, 10, .96); --topbar-2: rgba(12, 10, 6, .93);
+}
 @media (min-width: 3500px) { html { font-size: 28px; } }

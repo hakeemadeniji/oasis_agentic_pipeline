@@ -39,7 +39,7 @@ function colorForClass(label) {
 }
 
 /* ---------------- theme ---------------- */
-const THEMES = ["midnight", "ocean", "slate", "amber", "clinical"];
+const THEMES = ["midnight", "ocean", "slate", "amber", "clinical", "t6", "t7", "t8"];
 function applyTheme(name) {
   if (!THEMES.includes(name)) name = "midnight";
   if (name === "midnight") delete document.documentElement.dataset.theme;
