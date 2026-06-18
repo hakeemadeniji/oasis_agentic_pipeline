@@ -131,6 +131,10 @@ def main():
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--lr", type=float, default=2e-4)
     ap.add_argument("--seed", type=int, default=42)
+    # Transfer learning from ImageNet is the single biggest LEGITIMATE accuracy
+    # lever on this small dataset (it does not touch the held-out patients).
+    ap.add_argument("--pretrained", dest="pretrained", action="store_true", default=True)
+    ap.add_argument("--no-pretrained", dest="pretrained", action="store_false")
     ap.add_argument(
         "--out",
         default=os.path.join(_ROOT, "src", "pipeline", "onnx_inference", "best_vision_agent.pth"),
@@ -155,13 +159,19 @@ def main():
         ListDataset(val_items, VAL_TF), batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
-    model = AlzheimerVisionAgent(num_classes=num_classes).to(device)
-    if os.path.exists(args.out):
+    warm = os.path.exists(args.out)
+    # Use ImageNet init only when NOT warm-starting (warm-start overwrites it anyway).
+    model = AlzheimerVisionAgent(
+        num_classes=num_classes, pretrained=args.pretrained and not warm
+    ).to(device)
+    if warm:
         try:
             model.load_state_dict(torch.load(args.out, map_location=device))
             print(f"[init] warm-started from {os.path.basename(args.out)}")
         except Exception as e:
-            print(f"[init] could not warm-start ({e}); training from scratch")
+            print(f"[init] could not warm-start ({e}); training fresh")
+    else:
+        print(f"[init] fresh model (pretrained_imagenet={args.pretrained})")
 
     criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)

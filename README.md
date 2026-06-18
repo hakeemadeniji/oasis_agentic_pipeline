@@ -27,6 +27,7 @@ The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence s
 
 **Not a medical device.** This is a research prototype and screening decision-support demonstrator — not FDA-cleared or CE-marked, and not for clinical use. Reported accuracy is **research-only** and must be read with care:
 
+- **Honest headline number: ~37% balanced accuracy** (chance = 25%) for the 4-class task on a subject-disjoint held-out test set, using an ImageNet-pretrained ResNet18. For comparison, an *image-level* split inflates this to ~99% purely through patient leakage. The shipped console weights are this honest model — **not** the leaky one.
 - **Patient-grouped evaluation.** Metrics are computed on a **subject-disjoint (patient-grouped) held-out test set** (`src/pipeline/data_split.py`) — no patient appears in both training and test. This is the honest measure of generalization. An *image-level* split would massively inflate accuracy because the bundled OASIS-1 set contains **~240 near-identical slices per subject**.
 - **Small, patient-poor classes.** The bundled dataset has very few subjects in some classes (e.g. *Moderate Dementia* has only ~2 subjects total), so small-class metrics are **noisy and indicative only**.
 - **Not a diagnosis.** A four-class MRI-slice label is not a clinical diagnosis — Alzheimer's diagnosis is clinical + biomarker (amyloid/tau PET, CSF) + longitudinal.
@@ -446,7 +447,7 @@ vision_agent.load_state_dict(torch.load(weights_path))
 - **Inference Time**: < 2 seconds per patient (GPU)
 - **Model Size**: 12.11 MB (INT8 quantized)
 - **Memory Usage**: ~2GB RAM (CPU mode)
-- **Accuracy**: 85%+ on validation set (with trained weights)
+- **Accuracy (honest generalization)**: **~37% balanced** on a **subject-disjoint held-out test set** (chance = 25%), ImageNet-pretrained ResNet18. This is the trustworthy number — an *image-level* split inflates it to ~99% via patient leakage (see [Validation Status](#️-research-use-only--validation-status)). The bundled data is patient-poor (Moderate Dementia has only ~2 subjects), so this is a **research prototype, not a clinically useful classifier**.
 
 ### Optimization Tips
 1. Use ONNX runtime for 3-5x speedup

@@ -12,11 +12,23 @@ class AlzheimerVisionAgent(nn.Module):
     Utilizes a ResNet backbone customized for clinical MRI slices.
     """
 
-    def __init__(self, num_classes=4):
+    def __init__(self, num_classes=4, pretrained: bool = False):
         super().__init__()
 
-        self.backbone = models.resnet18(weights=None)
-        self.backbone.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        # `pretrained` only affects INITIALIZATION (transfer learning from ImageNet),
+        # not the architecture — so a checkpoint trained either way loads into either
+        # instance. Inference callers keep the default (False) and load_state_dict.
+        weights = models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
+        self.backbone = models.resnet18(weights=weights)
+
+        # Adapt the 3-channel ImageNet stem to single-channel grayscale MRI. When
+        # pretrained, seed the new 1-channel kernel with the mean of the pretrained
+        # 3-channel kernel so the learned low-level features carry over.
+        new_conv = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        if pretrained:
+            with torch.no_grad():
+                new_conv.weight.copy_(self.backbone.conv1.weight.mean(dim=1, keepdim=True))
+        self.backbone.conv1 = new_conv
 
         num_features = self.backbone.fc.in_features
         self.backbone.fc = nn.Linear(num_features, num_classes)

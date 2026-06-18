@@ -31,7 +31,7 @@ FreeSurfer derivatives (`stats/aseg.stats`, `*.aparc.stats`), and PUP outputs
 
 | Analysis | Method | Module |
 |----------|--------|--------|
-| MRI severity classification | ResNet18 (NPU INT8), 4-class CDR proxy, balanced-trained (~98.8% balanced acc) | `agents/vision/` |
+| MRI severity classification | ImageNet-pretrained ResNet18 (NPU INT8), 4-class CDR proxy; **~37% balanced acc on a subject-disjoint held-out test set** (chance 25%; research-only — patient-poor data, see README Validation Status) | `agents/vision/` |
 | Explainability | Grad-CAM activation mapping over MRI | `agents/vision/explainer_agent.py` |
 | Whole-brain + **regional volumetry** | FreeSurfer `aseg` → eTIV-normalized **z-scores** + medial-temporal-atrophy (MTA) score | `agents/biomarker/volumetry_agent.py` |
 | Longitudinal atrophy velocity | nWBV change / yr, MMSE drift, trend classification | `agents/biomarker/temporal_analyst.py` |
