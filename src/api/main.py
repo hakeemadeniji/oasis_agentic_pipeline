@@ -49,7 +49,10 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="OASIS Agentic Pipeline API",
-    description="Multi-Agent AI System for Alzheimer's Disease Diagnosis",
+    description=(
+        "Multi-Agent AI System for Alzheimer's Disease Screening. "
+        "RESEARCH USE ONLY - not a medical device; not for clinical diagnosis."
+    ),
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -235,6 +238,7 @@ async def root():
     return {
         "message": "OASIS Agentic Pipeline API",
         "version": "1.0.0",
+        "notice": "Research use only - not a medical device; not for clinical diagnosis.",
         "docs": "/docs",
         "health": "/health",
     }
