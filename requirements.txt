@@ -5,9 +5,17 @@
 torch==2.12.0
 torchvision==0.27.0
 transformers==5.10.2
-sentence-transformers==2.2.2
+# NOTE: the RAG agent loads the "sentence-transformers/all-MiniLM-L6-v2" weights
+# directly via transformers (AutoTokenizer/AutoModel) with its own mean-pooling,
+# so the standalone `sentence-transformers` package is NOT required. It was also
+# incompatible (it pins transformers<5.0.0, conflicting with transformers 5.10.2).
 
 # ONNX Runtime
+# NOTE (Windows ARM64 / Snapdragon NPU): for Hexagon NPU acceleration install the
+# QNN execution provider build instead of the default:
+#     pip uninstall onnxruntime && pip install onnxruntime-qnn
+# DirectML GPU fallback is provided by onnxruntime-directml. The pipeline
+# auto-selects QNN -> DirectML -> CPU at runtime (see src/utils/npu_runtime.py).
 onnx==1.21.0
 onnxruntime==1.26.0
 onnxscript==0.7.0
@@ -26,12 +34,25 @@ nibabel==5.4.2
 tifffile==2026.6.1
 
 # Web Framework & API
-streamlit==1.58.0
-fastapi==0.115.0
-uvicorn==0.49.0
-starlette==1.2.1
-python-multipart==0.0.32
-websockets==16.0
+# NOTE: Using minimum version constraints for flexibility while ensuring compatibility.
+# fastapi>=0.115.0, starlette>=0.37.2, uvicorn>=0.49.0 are minimum versions
+# that work together. Letting pip resolve exact versions avoids conflicts.
+streamlit>=1.58.0
+fastapi>=0.115.0
+uvicorn>=0.49.0
+starlette>=0.37.2
+python-multipart>=0.0.32
+websockets>=16.0
+
+# Security & Authentication
+# OAuth2/OIDC support, JWT handling, password hashing
+python-jose[cryptography]>=3.3.0
+# bcrypt directly (passlib is unmaintained and breaks against bcrypt >= 4.1/5.x)
+bcrypt>=4.1.0
+
+# Rate Limiting
+# API rate limiting to prevent abuse and ensure fair usage
+slowapi>=0.1.9
 
 # Visualization
 plotly==5.24.1
@@ -39,27 +60,27 @@ altair==6.2.1
 pydeck==0.9.2
 
 # Utilities
-requests==2.34.2
-httpx==0.28.1
-tqdm==4.68.2
-pyyaml==6.0.3
-python-dateutil==2.9.0.post0
-joblib==1.5.3
-filelock==3.29.1
-fsspec==2026.4.0
-tenacity==9.1.4
-watchdog==6.0.0
+requests>=2.34.2
+httpx>=0.28.1
+tqdm>=4.68.2
+pyyaml>=6.0.3
+python-dateutil>=2.9.0
+joblib>=1.5.3
+filelock>=3.29.1
+fsspec>=2026.4.0
+tenacity>=9.1.4
+watchdog>=6.0.0
 
 # Type Checking & Validation
-typing-extensions==4.15.0
-annotated-doc==0.0.4
-attrs==26.1.0
+typing-extensions>=4.15.0
+annotated-doc>=0.0.4
+attrs>=26.1.0
 
 # CLI
-typer==0.25.1
-click==8.4.1
-rich==15.0.0
-shellingham==1.5.4
+typer>=0.25.1
+click>=8.4.1
+rich>=15.0.0
+shellingham>=1.5.4
 
 # Security & Encoding
 certifi==2026.5.20
@@ -113,3 +134,20 @@ h11==0.16.0
 httpcore==1.0.9
 httptools==0.8.0
 huggingface-hub==1.18.0
+
+# ============================================================================
+# Hybrid LLM: free local Ollama + cost-tiered Anthropic Claude
+# ============================================================================
+# The pipeline is hybrid. Free local Ollama (HTTP via the already-present
+# `requests` package) handles tasks it does as well; the official Anthropic SDK
+# handles the complex agentic reasoning (differential dx, cure-research) on a
+# cost-tiered basis (Haiku/Sonnet/Opus — you control the spend in .env).
+anthropic>=0.69.0
+# Ollama is a native app (not a pip package). Install + pull a small edge model:
+#     winget install Ollama.Ollama   # or https://ollama.com/download
+#     ollama pull llama3.2:3b
+# Set ANTHROPIC_API_KEY to enable the Claude tier; without it the system runs in
+# reduced (Ollama/deterministic) form. See scripts/setup_ollama.*.
+#
+# The effectiveness PDF report is rendered with Pillow (already listed above),
+# avoiding matplotlib/reportlab which lack reliable Python 3.14 win-arm64 wheels.

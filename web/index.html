@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
+  <title>OASIS Clinical Console — Alzheimer's Decision Support</title>
+  <!-- Apply the saved/URL theme before first paint to avoid a flash. -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("oasis-theme")
+          || new URLSearchParams(location.search).get("theme");
+        if (t && t !== "midnight") document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="/" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===================== TOP BAR ===================== -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">⌬</div>
+      <div class="brand-text">
+        <h1>OASIS&nbsp;Clinical&nbsp;Console</h1>
+        <span>Multi-Agent Alzheimer's Decision Support · screening only</span>
+      </div>
+    </div>
+    <div class="status-cluster" id="statusCluster">
+      <div class="status-pill" id="pillHealth"><span class="dot dot-idle"></span><span>Connecting…</span></div>
+      <div class="status-pill" id="pillAccel" title="Inference accelerator">NPU: —</div>
+      <div class="status-pill" id="pillLLM" title="Language reasoner tier">LLM: —</div>
+      <label class="status-pill theme-pick" title="Interface theme">
+        <span aria-hidden="true">🎨</span>
+        <select id="themeSelect" aria-label="Interface theme">
+          <option value="midnight">Theme 1</option>
+          <option value="ocean">Theme 2</option>
+          <option value="slate">Theme 3</option>
+          <option value="amber">Theme 4</option>
+          <option value="clinical">Theme 5</option>
+          <option value="t6">Theme 6</option>
+          <option value="t7">Theme 7</option>
+          <option value="t8">Theme 8</option>
+          <option value="hc">High Contrast</option>
+        </select>
+      </label>
+      <div class="status-pill clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ===================== LEFT: INTAKE ===================== -->
+    <aside class="panel intake">
+      <h2 class="panel-title">Patient Intake</h2>
+      <form id="intakeForm" autocomplete="off">
+        <label>Patient ID
+          <input type="text" id="patientId" value="OAS2_0001" />
+        </label>
+        <div class="grid-2">
+          <label>Age
+            <input type="number" id="age" value="75" min="0" max="120" step="0.1" />
+          </label>
+          <label>MMSE
+            <input type="number" id="mmse" value="24" min="0" max="30" step="0.1" />
+          </label>
+        </div>
+        <div class="grid-2">
+          <label>Sex
+            <select id="sex"><option value="F">Female</option><option value="M">Male</option></select>
+          </label>
+          <label>Education (yr)
+            <input type="number" id="education" value="14" min="0" max="30" />
+          </label>
+        </div>
+        <label>Longitudinal ID <span class="hint">(temporal + volumetry lookup)</span>
+          <input type="text" id="longId" value="OAS2_0001" />
+        </label>
+
+        <div class="intake-actions">
+          <button type="button" class="btn btn-ghost" id="btnSample">⟳ Load sample scan</button>
+          <label class="btn btn-ghost file-btn">↑ Upload MRI
+            <input type="file" id="fileInput" accept="image/*" hidden />
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-run" id="btnRun" disabled>
+          <span class="run-label">▶ Run Multi-Agent Analysis</span>
+          <span class="spinner" hidden></span>
+        </button>
+        <p class="scan-meta" id="scanMeta">No scan loaded.</p>
+      </form>
+
+      <div class="agent-rail">
+        <h3>Agent Pipeline</h3>
+        <ul id="agentRail">
+          <li data-agent="vision"><span class="ar-dot"></span>Vision (ResNet18 / NPU)</li>
+          <li data-agent="explainer"><span class="ar-dot"></span>Grad-CAM Explainer</li>
+          <li data-agent="biomarker"><span class="ar-dot"></span>Clinical Biomarkers</li>
+          <li data-agent="temporal"><span class="ar-dot"></span>Temporal Analyst</li>
+          <li data-agent="volumetry"><span class="ar-dot"></span>Regional Volumetry</li>
+          <li data-agent="rag"><span class="ar-dot"></span>Medical RAG</li>
+          <li data-agent="ethicist"><span class="ar-dot"></span>Ethicist Guardrail</li>
+          <li data-agent="reasoner"><span class="ar-dot"></span>Clinical Reasoner (Ollama)</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- ===================== CENTER: VIEWER ===================== -->
+    <section class="panel viewer-panel">
+      <div class="viewer-head">
+        <h2 class="panel-title">MRI Viewer · Grad-CAM</h2>
+        <div class="viewer-tools">
+          <div class="seg" id="viewSeg">
+            <button class="seg-btn active" data-view="scan">Scan</button>
+            <button class="seg-btn" data-view="brain">Brain Map</button>
+          </div>
+          <label class="switch" id="heatmapCtl"><input type="checkbox" id="overlayToggle" checked /><span>Heatmap</span></label>
+          <input type="range" id="opacity" min="0" max="100" value="70" />
+          <span id="opacityVal" class="mono">70%</span>
+          <button class="btn btn-ghost btn-sm" id="btnInvert" title="Invert grayscale">◐</button>
+        </div>
+      </div>
+      <div class="viewport" id="viewport">
+        <div class="viewport-grid" aria-hidden="true"></div>
+        <img id="imgBase" alt="MRI scan" />
+        <img id="imgOverlay" alt="Grad-CAM overlay" />
+        <div class="viewport-empty" id="viewportEmpty">
+          <div class="ve-icon">🧠</div>
+          <p>Load a sample scan or upload an MRI to begin.</p>
+        </div>
+        <div class="viewport-legend" id="viewportLegend" hidden>
+          <span>low</span><div class="legend-ramp"></div><span>high activation</span>
+        </div>
+
+        <!-- Interactive anatomical brain map: regions glow with pathology severity -->
+        <svg id="brainMap" viewBox="0 0 400 360" hidden aria-label="Anatomical brain map">
+          <defs>
+            <radialGradient id="cortexGrad" cx="50%" cy="42%" r="65%">
+              <stop offset="0%" stop-color="#22303f"/><stop offset="100%" stop-color="#141d27"/>
+            </radialGradient>
+          </defs>
+          <!-- cortex / hemispheres (coronal schematic) -->
+          <path id="r-cortex" class="region" data-structure="Cortex" data-label="Cerebral cortex"
+                d="M200 30 C120 30 55 95 55 185 C55 270 110 320 150 322 C150 300 150 250 160 230
+                   C140 225 135 200 150 195 C150 175 160 160 200 158 C240 160 250 175 250 195
+                   C265 200 260 225 240 230 C250 250 250 300 250 322 C290 320 345 270 345 185
+                   C345 95 280 30 200 30 Z"/>
+          <line x1="200" y1="36" x2="200" y2="150" class="fissure"/>
+          <!-- lateral ventricles -->
+          <path id="r-vent-l" class="region" data-structure="Left-Lateral-Ventricle" data-label="L lateral ventricle"
+                d="M186 96 C150 104 140 150 160 176 C172 168 182 140 186 110 Z"/>
+          <path id="r-vent-r" class="region" data-structure="Right-Lateral-Ventricle" data-label="R lateral ventricle"
+                d="M214 96 C250 104 260 150 240 176 C228 168 218 140 214 110 Z"/>
+          <!-- 3rd ventricle -->
+          <rect id="r-vent3" class="region" data-structure="3rd-Ventricle" data-label="3rd ventricle"
+                x="196" y="150" width="8" height="40" rx="4"/>
+          <!-- amygdalae -->
+          <ellipse id="r-amyg-l" class="region" data-structure="Left-Amygdala" data-label="L amygdala" cx="158" cy="206" rx="16" ry="12"/>
+          <ellipse id="r-amyg-r" class="region" data-structure="Right-Amygdala" data-label="R amygdala" cx="242" cy="206" rx="16" ry="12"/>
+          <!-- hippocampi -->
+          <ellipse id="r-hippo-l" class="region" data-structure="Left-Hippocampus" data-label="L hippocampus" cx="150" cy="240" rx="26" ry="14"/>
+          <ellipse id="r-hippo-r" class="region" data-structure="Right-Hippocampus" data-label="R hippocampus" cx="250" cy="240" rx="26" ry="14"/>
+        </svg>
+        <div class="brain-tip" id="brainTip" hidden></div>
+        <div class="brain-legend" id="brainLegend" hidden>
+          <span>normal</span><div class="brain-ramp"></div><span>severe atrophy / enlargement</span>
+        </div>
+      </div>
+
+      <div class="verdict" id="verdict" hidden>
+        <div class="verdict-main">
+          <div class="verdict-class" id="verdictClass">—</div>
+          <div class="verdict-sub" id="verdictSub">awaiting analysis</div>
+        </div>
+        <div class="verdict-conf">
+          <div class="conf-ring" id="confRing"><span id="confVal">0%</span></div>
+          <span class="conf-label">confidence</span>
+        </div>
+      </div>
+      <div class="ethics-banner" id="ethicsBanner" hidden></div>
+    </section>
+
+    <!-- ===================== RIGHT: ANALYTICS ===================== -->
+    <section class="panel analytics">
+      <h2 class="panel-title">Diagnostic Analytics</h2>
+
+      <div class="card">
+        <h3>Class Probabilities</h3>
+        <div class="bars" id="probBars"><p class="muted">Run an analysis to populate.</p></div>
+      </div>
+
+      <div class="card">
+        <h3>Regional Volumetry <span class="hint">z-score vs elderly norm</span></h3>
+        <div class="zbars" id="zBars"><p class="muted">Requires FreeSurfer / longitudinal ID.</p></div>
+        <p class="vol-summary mono" id="volSummary"></p>
+      </div>
+
+      <div class="card">
+        <h3>ATN Biomarker Profile <span class="hint" id="atnProfile">NIA-AA framework</span></h3>
+        <div class="atn-axes" id="atnAxes">
+          <div class="atn-chip" data-axis="A"><span class="atn-k">A</span><span class="atn-v" id="atnA">?</span><small>Amyloid</small></div>
+          <div class="atn-chip" data-axis="T"><span class="atn-k">T</span><span class="atn-v" id="atnT">?</span><small>Tau</small></div>
+          <div class="atn-chip" data-axis="N"><span class="atn-k">N</span><span class="atn-v" id="atnN">?</span><small>Neurodeg.</small></div>
+        </div>
+        <p class="atn-category" id="atnCategory">Run analysis to profile A/T/N.</p>
+      </div>
+
+      <div class="card">
+        <h3>Differential Diagnosis <span class="hint" id="diffProvider">Agent 11</span></h3>
+        <div class="bars" id="diffBars"><p class="muted">Run an analysis to rank etiologies.</p></div>
+        <p class="vol-summary" id="diffWorkup"></p>
+      </div>
+
+      <div class="card research-card">
+        <h3>Cure-Research Lab <span class="hint">Agents: research + therapeutic</span></h3>
+        <p class="muted" id="researchIntro">Mine the OASIS cohort for treatment/prevention clues and generate
+          grounded, testable hypotheses.</p>
+        <button type="button" class="btn btn-ghost" id="btnResearch">🧪 Run cure-research experiments</button>
+        <div id="researchOut" hidden>
+          <div class="findings" id="researchFindings"></div>
+          <h4 class="research-h">Therapeutic hypotheses <span class="hint" id="researchProvider"></span></h4>
+          <ul class="hypotheses" id="researchHyps"></ul>
+          <p class="research-disclaimer">Research prioritization on observational data — not causal or treatment advice.</p>
+        </div>
+      </div>
+
+      <div class="card-row">
+        <div class="card mini">
+          <h3>Temporal</h3>
+          <div class="kv"><span>Trend</span><b id="tTrend">—</b></div>
+          <div class="kv"><span>Atrophy</span><b id="tAtrophy">—</b></div>
+        </div>
+        <div class="card mini">
+          <h3>Biomarkers</h3>
+          <div class="kv"><span>Age risk</span><b id="bAge">—</b></div>
+          <div class="kv"><span>MMSE</span><b id="bMmse">—</b></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Clinical Reasoner <span class="hint" id="reasonerTier">—</span></h3>
+        <p class="narrative" id="narrative">The Ollama-backed reasoner synthesizes a grounded summary here after analysis.</p>
+      </div>
+
+      <div class="card">
+        <h3>Supporting Evidence (RAG)</h3>
+        <ul class="evidence" id="evidence"><li class="muted">—</li></ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="appfoot">
+    <span>OASIS Agentic Pipeline · hybrid edge-cloud · Snapdragon-NPU optimized</span>
+    <span class="mono" id="footMeta"></span>
+    <span class="disclaimer">⚠ Research screening decision-support — not a diagnosis. All flagged cases route to a clinician.</span>
+  </footer>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

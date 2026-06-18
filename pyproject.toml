@@ -1,0 +1,58 @@
+# Tooling configuration for the OASIS Agentic Pipeline.
+#
+# NOTE on single-source config:
+#   * Ruff (lint + format) is configured in `ruff.toml` (target py314, line-length
+#     100, E402 ignored). A root `ruff.toml` always takes precedence over a
+#     `[tool.ruff]` table here, so that table was removed to avoid a dead,
+#     conflicting second config. `ruff format` replaces black — no `[tool.black]`.
+#   * Pytest is configured in `pytest.ini` (which takes precedence over
+#     `[tool.pytest.ini_options]`), so the duplicate pytest table was removed too.
+#
+# This file keeps only the tools that read their config from pyproject.toml:
+# mypy, bandit (CI security job), and coverage.py.
+
+[tool.bandit]
+exclude_dirs = ["/tests", "/scripts"]
+skips = ["B101"]  # Skip assert_used
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = [
+    "tests/",
+    "scripts/",
+    "venv/",
+    ".venv/",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "tests/*",
+    "scripts/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "if typing.TYPE_CHECKING:",
+    "@abstractmethod",
+]
+precision = 2

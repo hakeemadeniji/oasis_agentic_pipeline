@@ -10,16 +10,26 @@
 
 ## 🧠 Overview
 
-The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence system that orchestrates **7 specialized AI agents** to provide comprehensive, explainable, and ethically-validated Alzheimer's disease diagnoses. The system combines deep learning vision models, clinical biomarker analysis, temporal progression tracking, and retrieval-augmented generation (RAG) to deliver multi-modal diagnostic assessments.
+The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence system that orchestrates **12 specialized AI agents** to provide comprehensive, explainable, and ethically-validated Alzheimer's disease screening. It is a **hybrid agentic system**: a free local **Ollama** tier handles tasks it does as well, while the complex clinical reasoning (differential diagnosis, cure-research hypothesis generation) runs on **Claude via `ANTHROPIC_API_KEY`** on a **cost-tiered** basis (Haiku → Sonnet → Opus). Hardware inference is tuned for **Windows on ARM64 / Snapdragon NPU**. It adds **regional brain volumetry** + **ATN biomarker staging** from OASIS-3/4 derivatives, an **interactive brain map** where regions glow with pathology, a **cure-research lab** that mines the cohort for treatment/prevention clues, and a **production radiology-grade web console** that runs on any device — including hospital displays and TVs.
+
+> 📐 [EDGE_CLOUD_ARCHITECTURE.md](EDGE_CLOUD_ARCHITECTURE.md) — hybrid edge-cloud / NPU design and the LLM routing tiers.
+> 🧪 [ADVANCED_ANALYTICS.md](ADVANCED_ANALYTICS.md) — diagnostic analyses the OASIS data supports (ATN, Centiloid, BrainAGE, progression).
+> 📊 [docs/OASIS_Pipeline_Effectiveness_Analysis.pdf](docs/OASIS_Pipeline_Effectiveness_Analysis.pdf) — generated effectiveness report.
+
+![Clinical Console](docs/console_preview.png)
+![Interactive brain map](docs/console_brainmap.png)
 
 ### Key Features
 
-- 🔬 **Multi-Modal Analysis**: Integrates MRI imaging, clinical biomarkers, and longitudinal data
+- 🔬 **Multi-Modal Analysis**: Integrates MRI imaging, clinical biomarkers, longitudinal data, and regional volumetry
+- 🧠 **Regional Volumetry**: FreeSurfer `aseg` parsing → eTIV-normalized z-scores + medial-temporal-atrophy risk
+- ⚡ **Snapdragon NPU-Optimized**: ONNX Runtime **QNN → DirectML → CPU** auto-fallback for Windows ARM64
+- 🤖 **Local LLM Reasoning**: Ollama-backed Clinical Reasoner (edge-first, optional self-hosted cloud) — **zero paid API keys**
 - 🎯 **Explainable AI**: Grad-CAM heatmaps for visual interpretation of model decisions
 - 🛡️ **Ethical Guardrails**: Built-in compliance agent prevents unsafe or contradictory diagnoses
 - 📚 **RAG-Enhanced**: Medical literature retrieval for evidence-based decision support
-- ⚡ **Hardware-Optimized**: ONNX INT8 quantization for edge deployment
-- 📊 **Human-in-the-Loop**: Active learning queue for continuous model improvement
+- 🗂️ **OASIS-3 / OASIS-4 Ingestion**: Vendored NITRC download scripts (scans, FreeSurfer, PUP) + ARM64 PowerShell wrapper
+- 📊 **Effectiveness Analysis**: One-command, reproducible PDF report (Pillow-rendered, no matplotlib)
 - 🌐 **Interactive Dashboard**: Streamlit-based web interface for real-time diagnostics
 
 ---
@@ -54,7 +64,7 @@ The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence s
                        └─────────┘
 ```
 
-### The 7 Specialized Agents
+### The 12 Specialized Agents
 
 1. **Vision Agent**: ResNet18-based MRI image classifier
 2. **Biomarker Agent**: Clinical data processor with z-score normalization
@@ -62,7 +72,14 @@ The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence s
 4. **Explainer Agent**: Grad-CAM visualization for model interpretability
 5. **Temporal Analyst**: Longitudinal progression tracking and velocity metrics
 6. **Ethicist Agent**: Compliance guardrails and cross-modal validation
-7. **ONNX Agent**: Hardware-optimized INT8 quantized inference engine
+7. **ONNX Agent**: NPU-optimized INT8 inference (QNN → DirectML → CPU)
+8. **Clinical Reasoner**: Hybrid narrator — free Ollama for routine cases, Claude (standard tier) for flagged/low-confidence
+9. **Regional Volumetry Analyst**: FreeSurfer `aseg` regional volumes → normative z-scores + MTA risk
+10. **ATN Biomarker Profiler**: Amyloid/Tau/Neurodegeneration staging (NIA-AA framework, Centiloid)
+11. **Differential Diagnosis Reasoner** *(new)*: Claude (deep tier) ranked differential across dementia etiologies + work-up
+12. **Therapeutic Insight Reasoner** *(new)*: Claude (deep tier) cure-research hypotheses grounded on the cohort-mining engine
+
+> Tasks a small local model does as well (grounded summaries, structured labels) run **free on Ollama**; the genuinely hard reasoning (Agents 11–12) runs on **Claude** with cost-tiered model selection. Everything degrades gracefully to Ollama → deterministic templates when no key/daemon is present.
 
 ---
 
@@ -105,7 +122,16 @@ python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA: {
 
 ### Running the System
 
-#### Option 1: Streamlit Dashboard (Recommended)
+#### Option 1: Production Clinical Console (Recommended)
+```bash
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000      # full service
+# or, dependency-light edge console:
+python scripts/console_server.py --port 8800
+```
+Access the console at `http://localhost:8000/app/` (or `:8800/app/`). See
+[Production Clinical Console](#️-production-clinical-console-radiology-grade-web-ui).
+
+#### Option 1b: Streamlit Dashboard (legacy demo)
 ```bash
 streamlit run src/orchestrator/dashboard.py
 ```
@@ -130,6 +156,103 @@ cmo.execute_comprehensive_diagnosis(
     mock_subject_id="OAS2_0001"
 )
 ```
+
+---
+
+## ⚡ Edge & Hybrid-Cloud Setup (Snapdragon NPU + Ollama)
+
+### 1. Enable the Snapdragon NPU (optional but recommended)
+```powershell
+pip uninstall onnxruntime
+pip install onnxruntime-qnn        # Qualcomm Hexagon NPU
+# or: pip install onnxruntime-directml   # ARM64 GPU fallback
+```
+The pipeline auto-selects `QNN → DirectML → CPU` at runtime and logs which
+silicon served inference. No code change required.
+
+### 2. Set up the hybrid LLM tiers
+Free local tier (Ollama) for routine tasks:
+```powershell
+./scripts/setup_ollama.ps1         # installs Ollama + pulls llama3.2:3b
+```
+```bash
+./scripts/setup_ollama.sh          # Linux / Git Bash
+```
+Claude tier for the complex reasoning (Agents 11–12) — set your key in `.env`:
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL_CHEAP=claude-haiku-4-5      # structured/labels
+ANTHROPIC_MODEL_STANDARD=claude-sonnet-4-6  # clinical synthesis
+ANTHROPIC_MODEL_DEEP=claude-opus-4-8        # differential dx + cure-research
+PREFER_FREE_WHEN_CAPABLE=true               # prefer free Ollama where it suffices
+```
+Without a key the system still runs (Ollama → deterministic fallback); with it,
+hard reasoning escalates to Claude at the tier you choose for cost control.
+
+### 3. Download real OASIS-3 / OASIS-4 data (NITRC username: `hakeemadeniji`)
+```powershell
+cd scripts\oasis
+# FreeSurfer derivatives feed the Regional Volumetry agent:
+./Download-Oasis.ps1 -Type freesurfer -InputCsv examples\freesurfer_ids.csv -OutDir ..\..\data\oasis_freesurfer -Native
+```
+```bash
+cd scripts/oasis
+./download_oasis_freesurfer_tar.sh examples/freesurfer_ids.csv ../../data/oasis_freesurfer hakeemadeniji
+```
+See [scripts/oasis/README.md](scripts/oasis/README.md) for all four scripts
+(scans, freesurfer, pup, pup partial-match).
+
+### 4. Generate the effectiveness PDF report
+```bash
+python src/pipeline/evaluation/effectiveness_report.py --max-per-class 60
+# -> docs/OASIS_Pipeline_Effectiveness_Analysis.pdf
+```
+
+### 5. (Re)train the vision agent with class balancing
+The bundled OASIS slices are heavily imbalanced; the balanced trainer fixes the
+majority-class collapse and backs up prior weights:
+```bash
+python src/pipeline/train_balanced.py --per-class 400 --epochs 6
+```
+
+### 6. Export the NPU INT8 artifacts
+```bash
+python src/pipeline/onnx_inference/export_vision_onnx.py    # vision classifier -> INT8
+python src/pipeline/onnx_inference/compile_npu.py           # multimodal fusion -> INT8
+```
+
+---
+
+## 🖥️ Production Clinical Console (radiology-grade web UI)
+
+A production web console replaces the Streamlit demo as the primary interface:
+MRI viewer with adjustable **Grad-CAM overlay**, color-coded verdict + confidence
+ring, ethics banner, class-probability bars, **regional volumetry z-scores**,
+**ATN biomarker profile**, and the Ollama reasoner narrative. It is a
+dependency-free static SPA (vanilla JS/CSS — no CDN), so it runs on any browser
+and is responsive from a laptop to a **large hospital display or TV**.
+
+**Two ways to serve it:**
+
+```bash
+# A) Full service (FastAPI + RAG + batch); console at http://localhost:8000/app/
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+
+# B) Lightweight EDGE console (stdlib only — no transformers/RAG; ideal for a
+#    Snapdragon kiosk wired to a display). Console at http://localhost:8800/app/
+python scripts/console_server.py --port 8800
+```
+
+**Kiosk / unattended mode** for hospital displays & TVs — auto-loads a scan and
+runs the full analysis, optionally looping:
+```
+http://<host>:8800/app/?auto=1          # run once on load
+http://<host>:8800/app/?auto=1&loop=1   # cycle continuously (waiting-room display)
+```
+
+Cross-device: the console is plain HTML/CSS/JS served over HTTP, so any device on
+the network (a second hospital monitor, a wall-mounted TV, a tablet) just opens
+the URL — no install. Layout scales up automatically at ≥2200px for big screens.
 
 ---
 
@@ -174,9 +297,9 @@ OASIS_AGENTIC_PIPELINE/
 │       │   └── multimodal_fusion_int8.onnx  # Quantized model
 │       └── preprocessing/            # Data preprocessing utilities
 │
-├── tests/                            # Test suite (to be implemented)
+├── tests/                            # Pytest suite (agents, API, bias, perf)
 │
-├── DEVELOPMENT_PLAN.md               # Comprehensive architecture guide
+├── EDGE_CLOUD_ARCHITECTURE.md        # Hybrid edge-cloud / NPU design guide
 ├── REQUIREMENTS.md                   # Dependency documentation
 ├── API_DOCUMENTATION.md              # Interface specifications
 ├── TROUBLESHOOTING.md                # Problem-solving guide
@@ -328,7 +451,7 @@ All flagged cases are logged to the HITL queue for human expert review.
 
 ## 📚 Documentation
 
-- **[DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)**: Complete architecture and roadmap
+- **[EDGE_CLOUD_ARCHITECTURE.md](EDGE_CLOUD_ARCHITECTURE.md)**: Hybrid edge-cloud / NPU architecture and LLM routing tiers
 - **[REQUIREMENTS.md](REQUIREMENTS.md)**: Dependency documentation
 - **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)**: Interface specifications
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: Problem-solving guide
