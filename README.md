@@ -1,10 +1,14 @@
 # OASIS Agentic Pipeline
 
-**Advanced Multi-Agent AI System for Alzheimer's Disease Diagnosis**
+**Advanced Multi-Agent AI System for Alzheimer's Disease Screening — Research Prototype**
 
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.12.0-red.svg)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Status: Research Use Only](https://img.shields.io/badge/status-research%20use%20only-orange.svg)](#️-research-use-only--validation-status)
+
+> ## ⚠️ Research Use Only — Not a Medical Device
+> This project is a **research prototype** and **screening decision-support demonstrator**. It is **NOT a medical device**, is **not FDA-cleared or CE-marked**, and **must not be used for clinical diagnosis, treatment, or patient management.** All outputs are for research and educational purposes only; any clinically flagged case must be reviewed by a qualified clinician. See [Research Use Only & Validation Status](#️-research-use-only--validation-status).
 
 ---
 
@@ -18,6 +22,22 @@ The OASIS Agentic Pipeline is a sophisticated heterogeneous swarm intelligence s
 
 ![Clinical Console](docs/console_preview.png)
 ![Interactive brain map](docs/console_brainmap.png)
+
+### ⚠️ Research Use Only & Validation Status
+
+**Not a medical device.** This is a research prototype and screening decision-support demonstrator — not FDA-cleared or CE-marked, and not for clinical use. Reported accuracy is **research-only** and must be read with care:
+
+- **Patient-grouped evaluation.** Metrics are computed on a **subject-disjoint (patient-grouped) held-out test set** (`src/pipeline/data_split.py`) — no patient appears in both training and test. This is the honest measure of generalization. An *image-level* split would massively inflate accuracy because the bundled OASIS-1 set contains **~240 near-identical slices per subject**.
+- **Small, patient-poor classes.** The bundled dataset has very few subjects in some classes (e.g. *Moderate Dementia* has only ~2 subjects total), so small-class metrics are **noisy and indicative only**.
+- **Not a diagnosis.** A four-class MRI-slice label is not a clinical diagnosis — Alzheimer's diagnosis is clinical + biomarker (amyloid/tau PET, CSF) + longitudinal.
+- **What clinical-grade evidence would require:** large, multi-site validation (OASIS-3 / ADNI), a defined clinical endpoint, prospective evaluation, and a regulatory pathway (IEC 62304, ISO 14971, ISO 13485; FDA 510(k)/De Novo or CE-MDR).
+
+Reproduce trustworthy numbers (subject-disjoint train/eval):
+
+```bash
+python src/pipeline/train_balanced.py --per-class 300 --epochs 6        # subject-disjoint train/val
+python src/pipeline/evaluation/effectiveness_report.py                  # scores on HELD-OUT patients
+```
 
 ### Key Features
 

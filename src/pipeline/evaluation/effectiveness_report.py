@@ -50,9 +50,9 @@ CLASS_NAMES = ["Mild Dementia", "Moderate Dementia", "Non Demented", "Very mild 
 # ===========================================================================
 # 1. Vision classification evaluation
 # ===========================================================================
-def evaluate_vision(root: str, max_per_class: int) -> Dict:
+def evaluate_vision(root: str, max_per_class: int, weights_path: str | None = None) -> Dict:
     import torch
-    from torchvision import datasets, transforms
+    from torchvision import transforms
     from PIL import Image
     from sklearn.metrics import (
         confusion_matrix,
@@ -64,7 +64,9 @@ def evaluate_vision(root: str, max_per_class: int) -> Dict:
     from agents.vision.vision_agent import AlzheimerVisionAgent
 
     data_root = os.path.join(root, "data", "oasis_raw")
-    weights = os.path.join(root, "src", "pipeline", "onnx_inference", "best_vision_agent.pth")
+    weights = weights_path or os.path.join(
+        root, "src", "pipeline", "onnx_inference", "best_vision_agent.pth"
+    )
 
     # Match the training-time val/test transform exactly (incl. normalization).
     tf = transforms.Compose(
@@ -76,18 +78,28 @@ def evaluate_vision(root: str, max_per_class: int) -> Dict:
         ]
     )
 
-    dataset = datasets.ImageFolder(root=data_root)
-    classes = dataset.classes  # alphabetical -> matches training index space
-    # Stratified deterministic sample.
-    by_class: Dict[int, List[str]] = {}
-    for path, cls in dataset.samples:
-        by_class.setdefault(cls, []).append(path)
-    rng = np.random.default_rng(42)
+    # PATIENT-GROUPED evaluation: score ONLY on held-out test SUBJECTS the model
+    # never saw in training (no subject overlap). This reflects real generalization
+    # rather than memorized per-patient slices (image-level splits inflate accuracy
+    # because there are ~240 near-identical slices per subject).
+    from pipeline.data_split import patient_grouped_split, subject_id_from_path
+
+    classes, _train, _val, test_items = patient_grouped_split(data_root, seed=42)
+    by_class: Dict[int, List[Tuple[str, int]]] = {}
+    for path, cls in test_items:
+        by_class.setdefault(cls, []).append((path, cls))
+    rng = np.random.default_rng(123)
     sampled: List[Tuple[str, int]] = []
-    for cls, paths in by_class.items():
-        idx = rng.permutation(len(paths))[:max_per_class]
-        for i in idx:
-            sampled.append((paths[i], cls))
+    for cls in sorted(by_class):
+        lst = by_class[cls]
+        idx = rng.permutation(len(lst))[:max_per_class]
+        sampled += [lst[i] for i in idx]
+    # Per-class count of held-out test SUBJECTS (transparency: a class with very
+    # few subjects yields a statistically meaningless per-class metric).
+    _subj: Dict[int, set] = {}
+    for path, cls in test_items:
+        _subj.setdefault(cls, set()).add(subject_id_from_path(path))
+    test_subjects = {c: len(s) for c, s in _subj.items()}
 
     device = torch.device("cpu")
     model = AlzheimerVisionAgent(num_classes=len(classes)).to(device)
@@ -143,6 +155,8 @@ def evaluate_vision(root: str, max_per_class: int) -> Dict:
     return {
         "trained": trained,
         "classes": classes,
+        "split": "patient_grouped",
+        "test_subjects": test_subjects,
         "n": len(y_true),
         "elapsed_s": elapsed,
         "throughput": len(y_true) / elapsed if elapsed else 0.0,
@@ -385,10 +399,12 @@ def build_report(
     )
     rb.cover(
         [
-            f"MRI scans evaluated: {vision.get('n', 0)} (stratified across {len(vision.get('classes', []))} classes)",
+            "RESEARCH USE ONLY - NOT a medical device; not for clinical or diagnostic use.",
+            f"MRI scans evaluated: {vision.get('n', 0)} from subject-disjoint HELD-OUT patients "
+            f"(no subject overlap with training) across {len(vision.get('classes', []))} classes",
             f"Clinical cohort: {cohort.get('clinical_n', 0)} subjects | Longitudinal records: {cohort.get('long_n', 0)}",
             "Acceleration: ONNX Runtime QNN (Snapdragon NPU) → DirectML → CPU fallback",
-            "Language reasoning: local Ollama (no paid API tokens)",
+            "Language reasoning: local Ollama / cost-tiered Claude (hybrid)",
         ]
     )
 
@@ -402,6 +418,20 @@ def build_report(
             ("Screening sensitivity", f"{vision.get('sensitivity', 0) * 100:.1f}%", GOOD),
             ("Guardrail acc.", f"{guardrail.get('accuracy', 0) * 100:.1f}%", WARN),
         ]
+    )
+    rb.paragraph(
+        "RESEARCH USE ONLY. This is a research prototype and screening decision-support "
+        "demonstrator - NOT a medical device, and not cleared by any regulator (FDA/CE). "
+        "It must not be used for clinical diagnosis or patient management.",
+        color=BAD,
+    )
+    rb.paragraph(
+        "Validation note: metrics below are computed on a SUBJECT-DISJOINT held-out test set "
+        "(no patient appears in both training and test) - the honest measure of generalization. "
+        "The bundled OASIS-1 slice set is patient-poor in some classes (e.g. Moderate Dementia "
+        "has only ~2 subjects total), so small-class metrics are noisy and indicative only; "
+        "clinical-grade claims require a large multi-site cohort (OASIS-3 / ADNI).",
+        color=WARN,
     )
     rb.paragraph(
         "This report quantifies the effectiveness of the OASIS Agentic Pipeline, a hybrid "
@@ -430,9 +460,15 @@ def build_report(
     rb.new_page()
     rb.heading("2. Vision Agent Classification Performance", 1)
     rb.paragraph(
-        f"Evaluated on {vision.get('n', 0)} held-out MRI slices using the training-time "
-        "validation transform (grayscale, 224×224, normalized). Class indices follow the "
-        "alphabetical ImageFolder ordering used during training."
+        f"Evaluated on {vision.get('n', 0)} slices from SUBJECT-DISJOINT held-out patients "
+        "(no subject overlap with training), using the training-time validation transform "
+        "(grayscale, 224x224, normalized). Held-out test subjects per class: "
+        + ", ".join(
+            f"{c}={vision.get('test_subjects', {}).get(i, 0)}"
+            for i, c in enumerate(vision.get("classes", []))
+        )
+        + ". A class with very few held-out subjects yields a statistically meaningless "
+        "per-class metric."
     )
     classes = vision.get("classes", CLASS_NAMES)
     rb.grouped_bar(
@@ -602,9 +638,11 @@ def build_report(
     rb.new_page()
     rb.heading("7. Methodology & Limitations", 1)
     rb.bullet(
-        "Vision metrics: stratified, class-balanced HELD-OUT sample (seed=42, "
-        "disjoint from the balanced-trainer's per-class training window when "
-        "max-per-class <= 80), training-consistent normalization, evaluated on CPU."
+        "Vision metrics use a SUBJECT-DISJOINT (patient-grouped) split - no subject appears "
+        "in both training and test (src/pipeline/data_split.py). This is the honest measure of "
+        "generalization; image-level splits inflate accuracy because there are ~240 "
+        "near-identical slices per subject. Evaluated on CPU with training-consistent "
+        "normalization (seed=42)."
     )
     rb.bullet(
         "Normative volumetry reference values are screening priors consolidated from "
@@ -630,14 +668,17 @@ def main():
     parser = argparse.ArgumentParser(description="Generate the OASIS effectiveness PDF report.")
     parser.add_argument("--max-per-class", type=int, default=60)
     parser.add_argument(
+        "--weights", type=str, default=None, help="path to model weights (.pth); default = bundled"
+    )
+    parser.add_argument(
         "--out",
         type=str,
         default=os.path.join(_ROOT, "docs", "OASIS_Pipeline_Effectiveness_Analysis.pdf"),
     )
     args = parser.parse_args()
 
-    print("[1/5] Evaluating vision agent ...")
-    vision = evaluate_vision(_ROOT, args.max_per_class)
+    print("[1/5] Evaluating vision agent on subject-disjoint HELD-OUT patients ...")
+    vision = evaluate_vision(_ROOT, args.max_per_class, weights_path=args.weights)
     print(
         f"      accuracy={vision['accuracy'] * 100:.1f}%  balanced={vision['balanced_accuracy'] * 100:.1f}%"
     )

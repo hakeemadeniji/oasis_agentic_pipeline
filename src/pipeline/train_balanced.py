@@ -33,7 +33,7 @@ import torch
 import torch.nn as nn
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
-from torchvision import datasets, transforms
+from torchvision import transforms
 
 _CUR = os.path.dirname(os.path.abspath(__file__))
 _SRC = os.path.abspath(os.path.join(_CUR, ".."))
@@ -42,6 +42,7 @@ if _SRC not in sys.path:
     sys.path.append(_SRC)
 
 from agents.vision.vision_agent import AlzheimerVisionAgent  # noqa: E402
+from pipeline.data_split import patient_grouped_split  # noqa: E402
 
 TRAIN_TF = transforms.Compose(
     [
@@ -77,20 +78,27 @@ class ListDataset(Dataset):
 
 
 def build_splits(data_root: str, per_class: int, val_per_class: int, seed: int):
-    ds = datasets.ImageFolder(root=data_root)
-    by_class: Dict[int, List[str]] = defaultdict(list)
-    for path, cls in ds.samples:
-        by_class[cls].append(path)
-    rng = np.random.default_rng(seed)
-    train_items, val_items = [], []
-    for cls, paths in by_class.items():
-        idx = rng.permutation(len(paths))
-        val_idx = idx[:val_per_class]
-        train_idx = idx[val_per_class : val_per_class + per_class]
-        val_items += [(paths[i], cls) for i in val_idx]
-        train_items += [(paths[i], cls) for i in train_idx]
-    rng.shuffle(train_items)
-    return ds.classes, train_items, val_items
+    # Subject-disjoint split FIRST (no patient appears in more than one split),
+    # THEN cap per class for balance. The held-out test patients are reserved for
+    # the effectiveness report and are never seen in training or model selection.
+    classes, train_all, val_all, _test = patient_grouped_split(data_root, seed=seed)
+
+    def cap_per_class(items: List[Tuple[str, int]], k: int) -> List[Tuple[str, int]]:
+        rng = np.random.default_rng(seed)
+        by_class: Dict[int, List[Tuple[str, int]]] = defaultdict(list)
+        for it in items:
+            by_class[it[1]].append(it)
+        out: List[Tuple[str, int]] = []
+        for cls in sorted(by_class):
+            lst = by_class[cls]
+            idx = rng.permutation(len(lst))[:k]
+            out += [lst[i] for i in idx]
+        return out
+
+    train_items = cap_per_class(train_all, per_class)
+    val_items = cap_per_class(val_all, val_per_class)
+    np.random.default_rng(seed).shuffle(train_items)
+    return classes, train_items, val_items
 
 
 @torch.no_grad()
@@ -105,7 +113,13 @@ def evaluate(model, loader, device, num_classes):
             total[t] += 1
             correct[t] += int(p == t)
     per_class = np.divide(correct, total, out=np.zeros_like(correct), where=total > 0)
-    return float(per_class.mean()), per_class, (correct.sum() / total.sum())
+    # Average balanced accuracy only over classes PRESENT in this split — with a
+    # subject-disjoint split a rare class may have 0 val/test subjects, and
+    # counting it as 0% would understate balanced accuracy.
+    present = total > 0
+    balanced = float(per_class[present].mean()) if present.any() else 0.0
+    overall = float(correct.sum() / total.sum()) if total.sum() else 0.0
+    return balanced, per_class, overall
 
 
 def main():
